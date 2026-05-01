@@ -15,6 +15,8 @@ No code. No cloud. No waiting.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
 [![Zod](https://img.shields.io/badge/Zod-v4-3068b7?style=flat-square)](https://zod.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
+[![Android](https://img.shields.io/badge/Android-tested-3ddc84?style=flat-square&logo=android)](https://www.android.com)
+[![iOS](https://img.shields.io/badge/iOS-not%20yet%20tested-lightgrey?style=flat-square&logo=apple)](https://www.apple.com/ios)
 
 </div>
 
@@ -58,7 +60,7 @@ AppFromAI is fundamentally different:
 | Works with a local LLM (Ollama) | ✅ | ❌ |
 | No new APK / IPA to install per app | ✅ | ❌ |
 | Modules compose and call each other | ✅ | ❌ |
-| Works fully offline | ✅ | ❌ |
+| Generated modules run 100% offline | ✅ | ❌ |
 | Open source | ✅ | ❌ |
 | Multi-language UI (🇮🇹 🇬🇧 🇪🇸 🇫🇷 🇩🇪) | ✅ | ❌ |
 
@@ -308,9 +310,13 @@ npx expo start
 Scan the QR code with **Expo Go**, or run a full dev build:
 
 ```bash
-npx expo run:ios      # iOS
-npx expo run:android  # Android
+npx expo run:android  # Android — tested ✅
+npx expo run:ios      # iOS — not yet tested ⚠️
 ```
+
+> **Platform status:**
+> - ✅ **Android** — tested and working
+> - ⚠️ **iOS** — code is compatible but not yet tested on a real device or simulator. Contributions welcome.
 
 ### Use a local LLM (recommended — fully private)
 
@@ -415,6 +421,16 @@ If you build something great with AppFromAI, open a PR to add it to the `example
 ## License
 
 MIT — use it, fork it, ship it, build on it.
+
+---
+
+## Disclaimer
+
+AppFromAI is an independent open-source project and is **not affiliated with, endorsed by, or officially connected to** OpenAI, Anthropic, or Ollama in any way.
+
+"OpenAI" and "ChatGPT" are trademarks of OpenAI, LLC. "Claude" is a trademark of Anthropic, PBC. "Ollama" is a trademark of Ollama, Inc. All third-party trademarks are the property of their respective owners and are referenced here solely to describe software compatibility.
+
+Users are responsible for complying with the terms of service of any AI provider they connect to AppFromAI.
 
 ---
 
