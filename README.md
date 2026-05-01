@@ -64,6 +64,24 @@ AppFromAI is fundamentally different:
 
 ---
 
+## Screenshots
+
+<div align="center">
+
+| Generate | Modules |
+|:---:|:---:|
+| <img src="docs/screenshots/generate.jpeg" width="240"/> | <img src="docs/screenshots/modules.jpeg" width="240"/> |
+| *Describe your app in plain language — AI does the rest* | *Your generated modules, always one tap away* |
+
+| Settings — Language | Settings — AI Provider |
+|:---:|:---:|
+| <img src="docs/screenshots/settings-language.jpeg" width="240"/> | <img src="docs/screenshots/settings-provider.jpeg" width="240"/> |
+| *Switch between 5 languages instantly* | *Ollama, OpenAI, or Claude — your choice* |
+
+</div>
+
+---
+
 ## What you can build — in one sentence
 
 AppFromAI can generate an enormous range of apps on the fly. Here are just a few examples of what you can type:
@@ -366,14 +384,23 @@ src/
 
 ## Roadmap
 
-- [ ] **AI Vision** — `api.ai.describe(photoUri)` sends a photo to a vision model and returns structured data as module state
-- [ ] **SQLite** — real relational database for modules that need complex queries
-- [ ] **Biometric lock** — Face ID / fingerprint gate per module
-- [ ] **Background scheduler** — run module actions on a cron schedule
-- [ ] **Chart component** — bar, line, and pie charts in the declarative UI tree
-- [ ] **Module marketplace** — share, discover, and import community modules
-- [ ] **Signed modules** — cryptographic signing for trusted module distribution
-- [ ] **AI debugging** — when a module crashes, automatically send the error to the LLM and apply the fix
+### 🧩 New UI components
+- [ ] **Charts** — bar, line, and pie chart components in the declarative UI tree; generated modules can visualize data without a single line of chart code
+- [ ] **Map view** — display GPS coordinates and routes on an interactive map, directly inside any generated module
+- [ ] **Rich list items** — list rows with avatar, subtitle, badge, and swipe-to-delete, so the AI can generate beautiful data-driven apps instead of plain text lists
+
+### ⚡ Platform power
+- [ ] **Background scheduler** — trigger any module action on a cron schedule while the app is closed; habit reminders, data sync, periodic sensor readings
+- [ ] **SQLite storage** — a real relational database available to modules that need joins, queries, and structured data beyond key-value pairs
+- [ ] **Biometric lock** — protect individual modules with Face ID or fingerprint; one setting, zero code
+
+### 🤝 Sharing & community
+- [ ] **Module export & import** — export any module as a single JSON file and share it via AirDrop, link, or QR code; anyone with AppFromAI can import and run it instantly
+- [ ] **Module marketplace** — a curated feed of community-built modules; browse, preview, and install in one tap
+
+### 🛠️ Developer experience
+- [ ] **Live module editor** — edit a module's UI or code directly inside the app and hot-reload it without regenerating from scratch
+- [ ] **Smart auto-fix** — when a module throws a runtime error, automatically send the stack trace to the LLM and apply the patch; one tap from error to working app
 
 ---
 
