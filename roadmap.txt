@@ -1,0 +1,500 @@
+GENAPP ROADMAP PRODUZIONE - META MAGGIO 2026
+=============================================
+
+Obiettivo
+---------
+Portare GenApp in produzione come app madre Android/Expo che genera moduli personali tramite AI.
+I moduli girano dentro GenApp, usano UI dichiarativa JSON e possono accedere solo a capability native controllate:
+camera, microfono, QR, torcia, GPS, sensori, telefono/link esterni, storage locale e notifiche.
+
+Nota legale
+-----------
+Questo documento non e' consulenza legale. Serve come checklist tecnica e policy-oriented per ridurre i rischi su Google Play.
+Prima della pubblicazione, far verificare privacy policy, data safety e store listing da una persona competente in privacy/app compliance.
+
+
+PRINCIPI DI PRODOTTO PER LA V1
+==============================
+
+1. Non promettere "qualsiasi app".
+   Promettere strumenti personali generati da AI, dentro GenApp.
+
+2. Tutte le capability sensibili devono essere:
+   - dichiarate nel manifest del modulo;
+   - mostrate nel gate permessi di GenApp;
+   - richieste al sistema solo in contesto;
+   - usate solo per l'azione richiesta dall'utente.
+
+3. Default privacy:
+   - dati locali di default;
+   - nessun upload automatico di foto, audio, posizione o sensori;
+   - provider AI cloud opzionale e dichiarato;
+   - Ollama/local-first come punto forte.
+
+4. V1 affidabile batte V1 enorme.
+   Meglio 20-30 casi d'uso che funzionano bene, invece di capability infinite instabili.
+
+
+FASE 1 - STABILITA CORE
+Date consigliate: 27 aprile - 3 maggio
+======================================
+
+Obiettivo fase
+--------------
+Rendere affidabile il ciclo:
+prompt utente -> AI -> JSON -> validazione -> salvataggio -> esecuzione modulo -> errore chiaro se qualcosa fallisce.
+
+Cosa deve fare lo sviluppatore
+------------------------------
+
+1. Bloccare il contratto JSON dei moduli.
+   File coinvolti:
+   - src/ai/modulePrompt.ts
+   - src/types/generatedModule.ts
+   - src/ai/normalizeGeneratedModule.ts
+   - src/modules/moduleValidator.ts
+
+   Task:
+   - verificare che il prompt runtime includa tutte le capability supportate:
+     camera, audioRecorder, qrScanner, torch, location, sensors, linking, storage, network, notifications;
+   - verificare che lo schema Zod accetti solo queste capability;
+   - vietare chiavi extra pericolose o non documentate alla radice;
+   - mantenere compatibilita' con moduli generati male quando possibile tramite normalizzazione sicura.
+
+2. Rafforzare parsing e retry AI.
+   File coinvolti:
+   - src/ai/aiClient.ts
+
+   Task:
+   - mantenere format json su Ollama;
+   - mantenere num_ctx e num_predict alti;
+   - retry automatico una volta se JSON non valido;
+   - loggare contentHead/contentTail ma senza rompere l'app;
+   - mostrare errore utente chiaro quando anche il retry fallisce.
+
+3. Rafforzare sandbox/runner.
+   File coinvolti:
+   - src/modules/moduleRunner.ts
+   - src/security/codeScanner.ts
+
+   Task:
+   - bloccare eval, Function, new Function nel codice generato;
+   - bloccare require/import/process/global/globalThis/fs;
+   - bloccare loop palesemente infiniti;
+   - mantenere timeout action;
+   - verificare che ogni action ritorni oggetto serializzabile o null/undefined;
+   - migliorare messaggi errore in italiano.
+
+4. Stabilizzare renderer.
+   File coinvolti:
+   - src/renderer/DynamicRenderer.tsx
+   - src/renderer/components.tsx
+
+   Task:
+   - ogni bottone deve mostrare busy state;
+   - ogni errore action deve comparire a schermo;
+   - input/textarea/list/image/text bind devono inizializzarsi correttamente;
+   - actionInput deve funzionare sempre;
+   - se il modello usa input invece di actionInput, normalizzarlo.
+
+5. Creare suite manuale di moduli demo.
+   Cartella consigliata:
+   - examples/manual-tests/
+
+   Moduli da creare/testare:
+   - calcolatrice senza eval;
+   - scatta foto e mostra immagine;
+   - foto + GPS + note;
+   - registratore audio start/stop;
+   - QR scanner con ultimo risultato;
+   - torcia on/off;
+   - chiama numero;
+   - SMS via app esterna;
+   - notifica locale tra 10 secondi;
+   - accelerometro/giroscopio/magnetometro.
+
+Definition of Done fase 1
+-------------------------
+La generazione puo' fallire, ma non deve mai fallire in modo muto.
+Ogni modulo valido deve aprirsi; ogni modulo non valido deve mostrare un errore comprensibile.
+npm run typecheck deve passare.
+
+
+FASE 2 - CAPABILITY NATIVE E PERMESSI
+Date consigliate: 1 maggio - 7 maggio
+====================================
+
+Obiettivo fase
+--------------
+Far funzionare davvero le capability hardware richieste dai moduli su dispositivo reale.
+
+Cosa deve fare lo sviluppatore
+------------------------------
+
+1. Camera foto.
+   File coinvolti:
+   - src/capabilities/camera.ts
+   - src/capabilities/cameraBridge.ts
+   - src/renderer/CameraCaptureModal.tsx
+   - app/_layout.tsx
+
+   Task:
+   - testare api.camera.takePhoto() su Android reale;
+   - verificare permesso camera negato/concesso;
+   - verificare che ritorni { uri, width, height } o null;
+   - verificare che image bind mostri la foto;
+   - evitare accesso diretto alla galleria nella V1.
+
+2. QR scanner.
+   File coinvolti:
+   - src/capabilities/qrScanner.ts
+   - src/capabilities/qrBridge.ts
+   - src/renderer/QrScanModal.tsx
+
+   Task:
+   - testare api.qrScanner.scan();
+   - verificare annulla/chiudi;
+   - verificare scan multipli nello stesso modulo;
+   - impedire pending promise bloccate.
+
+3. Torcia.
+   File coinvolti:
+   - src/capabilities/torch.ts
+   - src/capabilities/torchBridge.ts
+   - src/renderer/TorchHost.tsx
+
+   Task:
+   - testare api.torch.setEnabled(true/false);
+   - mantenere compatibilita' api.torch(true);
+   - coercire stringhe "true"/"false" in boolean;
+   - spegnere torcia quando modulo/app si chiude se possibile.
+
+4. Microfono.
+   File coinvolti:
+   - src/capabilities/audioRecorder.ts
+
+   Task:
+   - testare start/stop;
+   - gestire doppio start;
+   - gestire stop senza registrazione attiva;
+   - verificare URI audio;
+   - valutare componente player audio per riascolto nella V1 o V1.1.
+
+5. GPS/location.
+   File coinvolti:
+   - src/capabilities/location.ts
+   - src/security/runtimePermissions.ts
+   - app.json
+
+   Task:
+   - usare solo foreground location;
+   - non aggiungere background location in V1;
+   - testare permesso negato/concesso;
+   - restituire lat, lon, accuracy, altitude, heading, speed, timestamp;
+   - mostrare errore se posizione non disponibile.
+
+6. Sensori dispositivo.
+   File coinvolti:
+   - src/capabilities/sensors.ts
+
+   Task:
+   - testare getAccelerometer;
+   - testare getGyroscope;
+   - testare getMagnetometer;
+   - testare getBarometer se il device lo supporta;
+   - testare getLight se il device lo supporta;
+   - ogni chiamata deve leggere un campione e rimuovere la subscription;
+   - errore chiaro se il sensore non esiste.
+
+7. Telefono/link esterni.
+   File coinvolti:
+   - src/capabilities/linking.ts
+
+   Task:
+   - usare solo tel:, sms:, mailto:;
+   - non chiedere READ_CALL_LOG, WRITE_CALL_LOG, READ_SMS, SEND_SMS;
+   - aprire dialer/SMS app esterna, non chiamare/inviare direttamente;
+   - se openURL fallisce, ritornare { opened: false } e far mostrare messaggio al modulo.
+
+Definition of Done fase 2
+-------------------------
+Ogni capability ha almeno un modulo demo funzionante su telefono reale.
+Permesso negato non deve crashare.
+Permesso concesso deve eseguire la funzione.
+npm run typecheck deve passare.
+
+
+FASE 3 - PRIVACY, POLICY E SICUREZZA PRODOTTO
+Date consigliate: 4 maggio - 10 maggio
+=============================================
+
+Obiettivo fase
+--------------
+Ridurre i rischi legali e di review Google Play.
+
+Cosa deve fare lo sviluppatore
+------------------------------
+
+1. Minimizzare permessi Android.
+   File coinvolti:
+   - app.json
+
+   Task:
+   - non aggiungere permessi SMS/Call Log;
+   - non aggiungere background location;
+   - non aggiungere MANAGE_EXTERNAL_STORAGE;
+   - non aggiungere READ_MEDIA_IMAGES/READ_MEDIA_VIDEO nella V1 se non serve;
+   - mantenere camera, record audio, foreground location, notifications solo se descritti nello store listing.
+
+2. Aggiungere schermata privacy/informazioni.
+   File suggeriti:
+   - app/(tabs)/settings.tsx
+   - eventuale src/privacy/privacyText.ts
+
+   Task:
+   - spiegare che i moduli sono generati dall'AI;
+   - spiegare che i dati restano locali salvo provider AI/cloud configurato dall'utente;
+   - spiegare le capability native;
+   - aggiungere link privacy policy;
+   - aggiungere pulsante elimina tutti i moduli/dati locali.
+
+3. Preparare privacy policy pubblica.
+   Output richiesto:
+   - URL pubblico, anche pagina semplice.
+
+   Contenuti minimi:
+   - quali dati possono essere trattati: prompt, moduli generati, foto, audio, posizione, sensori;
+   - dove vengono salvati: locale/AsyncStorage;
+   - quando vengono inviati fuori dispositivo: solo se si usa provider AI remoto o network module abilitato;
+   - come eliminare dati;
+   - contatto sviluppatore;
+   - niente vendita dati;
+   - niente dati sensibili per advertising.
+
+4. AI safety minima.
+   File coinvolti:
+   - src/ai/modulePrompt.ts
+   - src/modules/moduleValidator.ts
+   - eventuale src/security/promptSafety.ts
+
+   Task:
+   - bloccare richieste evidentemente dannose o illegali;
+   - bloccare moduli che chiedono furto credenziali, stalking, sorveglianza nascosta, truffe;
+   - aggiungere disclaimer nei messaggi errore/generazione;
+   - aggiungere "Elimina modulo" sempre disponibile;
+   - valutare pulsante "Segnala problema" nella V1.1.
+
+5. Store listing coerente.
+   Task:
+   - descrivere chiaramente il core purpose:
+     "GenApp crea strumenti personali tramite AI che girano dentro l'app";
+   - dichiarare che camera/GPS/microfono/sensori sono usati solo quando un modulo generato li richiede;
+   - evitare claim medici, sicurezza personale, monitoraggio background, automazioni aggressive;
+   - non promettere che ogni prompt produrra' app perfette.
+
+Policy Google Play da rispettare
+--------------------------------
+
+1. User Data policy.
+   Serve trasparenza su raccolta, uso, condivisione e conservazione dati.
+
+2. Permissions and APIs that access sensitive information.
+   I permessi devono essere necessari, contestuali e coerenti con la descrizione store.
+
+3. Location policy.
+   Solo foreground location in V1. Niente background.
+
+4. AI-generated content policy.
+   Lo sviluppatore e' responsabile dei contenuti generati. Serve feedback/eliminazione e prevenzione contenuti dannosi.
+
+5. Photo/video permissions.
+   Evitare accesso ampio a galleria. Camera diretta va bene se descritta e contestuale.
+
+Definition of Done fase 3
+-------------------------
+Privacy policy pronta.
+Data Safety draft pronto.
+Store listing coerente con permessi.
+Nessun permesso ad alto rischio non necessario.
+
+
+FASE 4 - QA E RELEASE CANDIDATE
+Date consigliate: 11 maggio - 15 maggio
+=======================================
+
+Obiettivo fase
+--------------
+Preparare una build candidabile alla closed beta/produzione.
+
+Cosa deve fare lo sviluppatore
+------------------------------
+
+1. QA dispositivo reale.
+   Testare su almeno:
+   - un Android reale;
+   - un emulatore Android;
+   - se possibile un secondo Android di marca diversa.
+
+   Scenari:
+   - installazione pulita;
+   - primo avvio;
+   - generazione con Ollama non raggiungibile;
+   - generazione con JSON rotto;
+   - modulo senza permessi;
+   - modulo con camera;
+   - modulo con microfono;
+   - modulo con GPS;
+   - modulo con sensori non disponibili;
+   - permesso negato;
+   - permesso concesso;
+   - cancellazione modulo;
+   - cancellazione dati.
+
+2. Stabilita build.
+   Comandi:
+   - npm run typecheck
+   - npm run android
+
+   Task:
+   - risolvere warning/errori nativi;
+   - verificare che app.json venga applicato nella build;
+   - fare clean build se i permessi non appaiono.
+
+3. Closed testing Google Play.
+   Task:
+   - creare release closed test;
+   - caricare AAB;
+   - compilare Data Safety;
+   - inserire privacy policy URL;
+   - aggiungere tester;
+   - raccogliere crash/log.
+
+4. Preparare changelog V1.
+   Contenuto:
+   - generazione moduli AI;
+   - moduli locali;
+   - capability controllate;
+   - privacy locale-first;
+   - limitazioni note.
+
+Definition of Done fase 4
+-------------------------
+Closed beta caricata.
+Nessun crash bloccante nei 10 moduli demo.
+Store listing e privacy coerenti.
+
+
+FASE 5 - PRODUZIONE LEGGERA
+Date consigliate: 16 maggio - 20 maggio
+=======================================
+
+Obiettivo fase
+--------------
+Rilasciare gradualmente senza sovra-promettere.
+
+Cosa deve fare lo sviluppatore
+------------------------------
+
+1. Release graduale.
+   Task:
+   - iniziare con closed/open testing o rollout parziale;
+   - monitorare crash;
+   - monitorare recensioni;
+   - correggere bug hardware per device specifici.
+
+2. Limitazioni pubbliche.
+   Inserire nelle note:
+   - i moduli sono generati da AI e possono richiedere rigenerazione;
+   - alcune funzioni dipendono dall'hardware del telefono;
+   - Ollama richiede configurazione IP/rete;
+   - provider cloud possono trattare prompt secondo le loro policy.
+
+3. Backlog V1.1.
+   Possibili aggiunte:
+   - export/import moduli;
+   - template moduli certificati;
+   - marketplace locale;
+   - player audio;
+   - storico GPS/foto;
+   - test automatici per schema moduli;
+   - sistema di rating modulo generato;
+   - prompt repair piu' intelligente;
+   - audit log capability usate da ogni modulo.
+
+
+CHECKLIST PROD FINALE
+=====================
+
+Tecnica
+-------
+[ ] npm run typecheck passa.
+[ ] Build Android pulita.
+[ ] 10 moduli demo funzionano su device reale.
+[ ] Permessi negati gestiti.
+[ ] Errori action visibili.
+[ ] Nessun crash se AI genera JSON rotto.
+[ ] Nessun modulo puo' usare capability non dichiarata nel manifest.
+[ ] Torch sempre boolean verso Expo Camera.
+[ ] Linking apre solo tel/mailto/sms.
+[ ] GPS solo foreground.
+[ ] Sensori leggono un campione e rimuovono subscription.
+
+Privacy / Play Store
+--------------------
+[ ] Privacy policy pubblica.
+[ ] Data Safety compilata.
+[ ] Store listing spiega camera/microfono/GPS/sensori.
+[ ] Nessun SMS/Call Log permission.
+[ ] Nessuna background location.
+[ ] Nessun broad file/media access.
+[ ] Nessuna vendita/condivisione dati sensibili.
+[ ] Provider AI cloud dichiarato se configurabile.
+[ ] Utente puo' eliminare moduli/dati.
+
+Prodotto
+--------
+[ ] Onboarding breve.
+[ ] Messaggi errore comprensibili.
+[ ] Moduli demo pronti per screenshot.
+[ ] Claim realistici.
+[ ] Closed beta fatta prima del rollout pubblico.
+
+
+RISCHI PRINCIPALI
+=================
+
+1. Qualita' AI locale.
+   Mitigazione: prompt stretto, retry, normalizzazione, esempi, messaggi chiari.
+
+2. Policy permessi Google Play.
+   Mitigazione: permessi contestuali, privacy policy, niente permessi ad alto rischio, listing trasparente.
+
+3. Sicurezza codice generato.
+   Mitigazione: scanner, timeout, API ristrette, no network di default, niente accesso globale.
+
+4. Hardware frammentato Android.
+   Mitigazione: errori chiari, test su piu' device, moduli demo per capability.
+
+5. Aspettative utenti.
+   Mitigazione: posizionare come strumenti personali generati e modificabili, non come app builder professionale perfetto.
+
+
+POSIZIONAMENTO CONSIGLIATO
+==========================
+
+Frase breve:
+"GenApp crea strumenti personali con AI che girano dentro una sola app, usando le funzioni del telefono solo quando le autorizzi."
+
+Da evitare:
+"Crea qualsiasi app perfetta."
+"Sostituisce uno sviluppatore."
+"Automatizza tutto il telefono."
+"Monitora posizione o microfono in background."
+
+Da usare:
+"Moduli personali."
+"Local-first."
+"Permessi controllati."
+"Camera, GPS, microfono e sensori solo su richiesta."
+"Rigenera e modifica quando vuoi."
+

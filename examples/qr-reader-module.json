@@ -1,0 +1,20 @@
+{
+  "manifest": {
+    "id": "qr-reader-example",
+    "name": "Lettore QR",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["qrScanner", "storage"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Lettore QR",
+    "components": [
+      { "type": "text", "id": "last", "text": "Nessuna scansione", "bind": "lastScan" },
+      { "type": "button", "id": "scan", "text": "Scansiona QR", "action": "scanOnce" }
+    ]
+  },
+  "code": "module.exports = { actions: { async scanOnce(api, input, state) { const text = await api.qrScanner.scan(); if (text) { await api.storage.save('lastQr', text); } return { lastScan: text || 'Nessun codice' }; } } };"
+}

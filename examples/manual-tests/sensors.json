@@ -1,0 +1,28 @@
+{
+  "manifest": {
+    "id": "sensors-example",
+    "name": "Sensori dispositivo",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["sensors"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Sensori",
+    "gap": 12,
+    "components": [
+      { "type": "text", "id": "accel", "text": "Accelerometro: —", "bind": "accel" },
+      { "type": "text", "id": "gyro", "text": "Giroscopio: —", "bind": "gyro" },
+      { "type": "text", "id": "mag", "text": "Magnetometro: —", "bind": "mag" },
+      { "type": "box", "direction": "row", "gap": 8, "components": [
+        { "type": "button", "id": "readAccel", "text": "Acc", "action": "readAccel", "layout": { "flex": 1 } },
+        { "type": "button", "id": "readGyro", "text": "Giro", "action": "readGyro", "layout": { "flex": 1 } },
+        { "type": "button", "id": "readMag", "text": "Mag", "action": "readMag", "layout": { "flex": 1 } }
+      ]},
+      { "type": "button", "id": "readAll", "text": "Leggi tutti", "action": "readAll" }
+    ]
+  },
+  "code": "module.exports = { actions: { async readAccel(api, input, state) { const d = await api.sensors.getAccelerometer(); if (!d) { return { accel: 'Accelerometro: non disponibile' }; } return { accel: 'Acc x:' + d.x.toFixed(2) + ' y:' + d.y.toFixed(2) + ' z:' + d.z.toFixed(2) }; }, async readGyro(api, input, state) { const d = await api.sensors.getGyroscope(); if (!d) { return { gyro: 'Giroscopio: non disponibile' }; } return { gyro: 'Giro x:' + d.x.toFixed(2) + ' y:' + d.y.toFixed(2) + ' z:' + d.z.toFixed(2) }; }, async readMag(api, input, state) { const d = await api.sensors.getMagnetometer(); if (!d) { return { mag: 'Magnetometro: non disponibile' }; } return { mag: 'Mag x:' + d.x.toFixed(2) + ' y:' + d.y.toFixed(2) + ' z:' + d.z.toFixed(2) }; }, async readAll(api, input, state) { const a = await api.sensors.getAccelerometer(); const g = await api.sensors.getGyroscope(); const m = await api.sensors.getMagnetometer(); return { accel: a ? ('Acc x:' + a.x.toFixed(2) + ' y:' + a.y.toFixed(2) + ' z:' + a.z.toFixed(2)) : 'Accelerometro: non disponibile', gyro: g ? ('Giro x:' + g.x.toFixed(2) + ' y:' + g.y.toFixed(2) + ' z:' + g.z.toFixed(2)) : 'Giroscopio: non disponibile', mag: m ? ('Mag x:' + m.x.toFixed(2) + ' y:' + m.y.toFixed(2) + ' z:' + m.z.toFixed(2)) : 'Magnetometro: non disponibile' }; } } };"
+}

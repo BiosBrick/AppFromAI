@@ -1,0 +1,21 @@
+{
+  "manifest": {
+    "id": "audio-recorder-example",
+    "name": "Registratore audio",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["audioRecorder", "storage"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Registratore audio",
+    "components": [
+      { "type": "text", "id": "status", "text": "Pronto", "bind": "status" },
+      { "type": "button", "id": "start", "text": "Avvia registrazione", "action": "startRecording" },
+      { "type": "button", "id": "stop", "text": "Ferma registrazione", "action": "stopRecording" }
+    ]
+  },
+  "code": "module.exports = { actions: { async startRecording(api, input, state) { await api.audioRecorder.start(); return { status: 'Registrazione avviata' }; }, async stopRecording(api, input, state) { const file = await api.audioRecorder.stop(); if (file && file.uri) { await api.storage.save('lastRecording', file); } return { status: file ? 'Registrazione salvata' : 'Nessuna registrazione attiva' }; } } };"
+}

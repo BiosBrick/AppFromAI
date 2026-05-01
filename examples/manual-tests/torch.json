@@ -1,0 +1,24 @@
+{
+  "manifest": {
+    "id": "torch-example",
+    "name": "Torcia",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["torch"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Torcia",
+    "gap": 16,
+    "components": [
+      { "type": "text", "id": "status", "text": "Torcia spenta", "bind": "status" },
+      { "type": "box", "direction": "row", "gap": 12, "components": [
+        { "type": "button", "id": "on", "text": "Accendi", "action": "torchOn", "layout": { "flex": 1 } },
+        { "type": "button", "id": "off", "text": "Spegni", "action": "torchOff", "layout": { "flex": 1 } }
+      ]}
+    ]
+  },
+  "code": "module.exports = { actions: { async torchOn(api, input, state) { await api.torch.setEnabled(true); return { status: 'Torcia accesa' }; }, async torchOff(api, input, state) { await api.torch.setEnabled(false); return { status: 'Torcia spenta' }; } } };"
+}

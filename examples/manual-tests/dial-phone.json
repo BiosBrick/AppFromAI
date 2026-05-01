@@ -1,0 +1,22 @@
+{
+  "manifest": {
+    "id": "dial-phone-example",
+    "name": "Chiama numero",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["linking"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Chiama numero",
+    "gap": 12,
+    "components": [
+      { "type": "input", "id": "number", "bind": "number", "placeholder": "Es. +39 123 456 7890", "keyboardType": "numeric" },
+      { "type": "button", "id": "call", "text": "Apri dialer", "action": "call" },
+      { "type": "text", "id": "msg", "text": "", "bind": "msg" }
+    ]
+  },
+  "code": "module.exports = { actions: { async call(api, input, state) { const num = String(state.number || '').trim(); if (!num) { return { msg: 'Inserisci un numero di telefono.' }; } const result = await api.linking.dialPhone(num); if (result && result.opened === false) { return { msg: 'Impossibile aprire il dialer.' }; } return { msg: 'Dialer aperto.' }; } } };"
+}

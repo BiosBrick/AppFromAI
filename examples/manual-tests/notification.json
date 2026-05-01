@@ -1,0 +1,23 @@
+{
+  "manifest": {
+    "id": "notification-example",
+    "name": "Notifica locale",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["notifications"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Notifica locale",
+    "gap": 12,
+    "components": [
+      { "type": "input", "id": "title", "bind": "title", "placeholder": "Titolo notifica" },
+      { "type": "input", "id": "body", "bind": "body", "placeholder": "Testo notifica" },
+      { "type": "button", "id": "schedule", "text": "Invia tra 10 secondi", "action": "scheduleNotif" },
+      { "type": "text", "id": "status", "text": "", "bind": "status" }
+    ]
+  },
+  "code": "module.exports = { actions: { async scheduleNotif(api, input, state) { const title = String(state.title ?? '').trim() || 'GenApp'; const body = String(state.body ?? '').trim() || 'Notifica di test'; await api.notifications.schedule(title, body, 10); return { status: 'Notifica programmata tra 10 secondi.' }; } } };"
+}

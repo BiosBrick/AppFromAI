@@ -1,0 +1,35 @@
+{
+  "manifest": {
+    "id": "calculator-example",
+    "name": "Calcolatrice",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": [],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Calcolatrice",
+    "components": [
+      { "type": "text", "id": "display", "text": "0", "bind": "display" },
+      {
+        "type": "input",
+        "id": "a",
+        "bind": "a",
+        "placeholder": "Primo numero",
+        "keyboardType": "decimal-pad"
+      },
+      {
+        "type": "input",
+        "id": "b",
+        "bind": "b",
+        "placeholder": "Secondo numero",
+        "keyboardType": "decimal-pad"
+      },
+      { "type": "button", "id": "add", "text": "Somma", "action": "add" },
+      { "type": "button", "id": "clear", "text": "Azzera", "action": "clear" }
+    ]
+  },
+  "code": "module.exports = { actions: { async add(api, input, state) { const a = parseFloat(String(state.a ?? '0').replace(',', '.')) || 0; const b = parseFloat(String(state.b ?? '0').replace(',', '.')) || 0; return { display: String(a + b) }; }, async clear(api, input, state) { return { display: '0', a: '', b: '' }; } } };"
+}

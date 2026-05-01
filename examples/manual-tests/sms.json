@@ -1,0 +1,23 @@
+{
+  "manifest": {
+    "id": "sms-example",
+    "name": "Invia SMS",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["linking"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Invia SMS",
+    "gap": 12,
+    "components": [
+      { "type": "input", "id": "to", "bind": "to", "placeholder": "Numero destinatario", "keyboardType": "numeric" },
+      { "type": "textarea", "id": "body", "bind": "body", "placeholder": "Testo del messaggio..." },
+      { "type": "button", "id": "send", "text": "Apri app SMS", "action": "openSms" },
+      { "type": "text", "id": "status", "text": "", "bind": "status" }
+    ]
+  },
+  "code": "module.exports = { actions: { async openSms(api, input, state) { const to = String(state.to || '').trim(); const body = String(state.body || '').trim(); if (!to) { return { status: 'Inserisci un numero destinatario.' }; } const result = await api.linking.sendSms(to, body); if (result && result.opened === false) { return { status: 'Impossibile aprire l\\'app SMS.' }; } return { status: 'App SMS aperta.' }; } } };"
+}

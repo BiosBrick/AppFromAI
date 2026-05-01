@@ -1,0 +1,25 @@
+{
+  "manifest": {
+    "id": "foto-gps-note-example",
+    "name": "Foto + GPS + Note",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["camera", "location", "storage"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Foto + GPS + Note",
+    "gap": 12,
+    "components": [
+      { "type": "image", "id": "photo", "bind": "photoUri" },
+      { "type": "text", "id": "coords", "text": "Posizione non rilevata", "bind": "coords" },
+      { "type": "textarea", "id": "note", "bind": "note", "placeholder": "Aggiungi una nota..." },
+      { "type": "button", "id": "capture", "text": "Scatta e segna posizione", "action": "captureAll" },
+      { "type": "button", "id": "save", "text": "Salva voce", "action": "saveEntry" },
+      { "type": "text", "id": "savedMsg", "text": "", "bind": "savedMsg" }
+    ]
+  },
+  "code": "module.exports = { actions: { async captureAll(api, input, state) { const photo = await api.camera.takePhoto(); const pos = await api.location.getCurrentPosition(); const photoUri = (photo && photo.uri) ? photo.uri : (state.photoUri || ''); const coords = pos ? ('Lat: ' + pos.latitude.toFixed(5) + '  Lon: ' + pos.longitude.toFixed(5)) : 'Posizione non disponibile'; return { photoUri, coords, savedMsg: '' }; }, async saveEntry(api, input, state) { if (!state.photoUri) { return { savedMsg: 'Scatta prima una foto.' }; } const entry = { photoUri: state.photoUri, coords: state.coords || '', note: state.note || '' }; await api.storage.save('foto_gps_' + Date.now(), entry); return { savedMsg: 'Voce salvata.' }; } } };"
+}

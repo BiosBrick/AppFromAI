@@ -1,0 +1,22 @@
+{
+  "manifest": {
+    "id": "camera-photo-example",
+    "name": "Scatta foto",
+    "version": "1.0.0",
+    "runtime": "javascript",
+    "permissions": ["camera"],
+    "entry": "logic.js",
+    "ui": "ui.json"
+  },
+  "ui": {
+    "type": "screen",
+    "title": "Scatta foto",
+    "gap": 12,
+    "components": [
+      { "type": "image", "id": "photo", "bind": "photoUri" },
+      { "type": "text", "id": "status", "text": "Nessuna foto", "bind": "status" },
+      { "type": "button", "id": "take", "text": "Scatta foto", "action": "takePhoto" }
+    ]
+  },
+  "code": "module.exports = { actions: { async takePhoto(api, input, state) { const photo = await api.camera.takePhoto(); if (photo && photo.uri) { return { photoUri: photo.uri, status: photo.width + 'x' + photo.height + ' px' }; } return { status: 'Foto annullata' }; } } };"
+}

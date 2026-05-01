@@ -1,0 +1,160 @@
+/**
+ * Schema UI per moduli (albero ricorsivo). Definito manualmente per evitare inferenza circolare TS↔Zod.
+ */
+
+/** Flex/margin controllati (no position assoluto: meglio per schermi diversi). */
+export type UiLayoutProps = {
+  flex?: number;
+  flexGrow?: number;
+  flexShrink?: number;
+  width?: number | string;
+  minWidth?: number;
+  maxWidth?: number | string;
+  alignSelf?: 'auto' | 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline';
+  marginTop?: number;
+  marginBottom?: number;
+  marginLeft?: number;
+  marginRight?: number;
+  marginHorizontal?: number;
+  marginVertical?: number;
+  /** Solo testo / campi: allineamento orizzontale del contenuto. */
+  textAlign?: 'left' | 'center' | 'right';
+};
+
+/** Palette colori del modulo — tutti i token sono opzionali (il default è il tema AppFromAI). */
+export type UiTheme = {
+  bg?: string;
+  surface?: string;
+  border?: string;
+  primary?: string;
+  text?: string;
+  muted?: string;
+};
+
+/** Stile visivo diretto su un singolo componente (sovrascrive il tema). */
+export type UiStyleProps = {
+  color?: string;
+  backgroundColor?: string;
+  fontSize?: number;
+  fontWeight?: '400' | '500' | '600' | '700' | '800' | '900' | 'bold' | 'normal';
+  borderRadius?: number;
+  padding?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  opacity?: number;
+};
+
+/** Schermata interna a un navigator. */
+export type NavigatorScreen = {
+  type: 'screen';
+  title: string;
+  components: UiNode[];
+  gap?: number;
+  padding?: number;
+  theme?: UiTheme;
+  /** Nome dell'action da chiamare automaticamente ogni volta che questa schermata diventa attiva. */
+  onFocus?: string;
+};
+
+export type UiNode =
+  | {
+      type: 'navigator';
+      initialScreen: string;
+      theme?: UiTheme;
+      screens: Record<string, NavigatorScreen>;
+    }
+  | {
+      type: 'screen';
+      title: string;
+      components: UiNode[];
+      gap?: number;
+      padding?: number;
+      theme?: UiTheme;
+    }
+  | { type: 'text'; id?: string; text?: string; bind?: string; layout?: UiLayoutProps; style?: UiStyleProps }
+  | {
+      type: 'input';
+      id: string;
+      placeholder?: string;
+      bind: string;
+      keyboardType?: 'default' | 'numeric' | 'decimal-pad';
+      layout?: UiLayoutProps;
+      style?: UiStyleProps;
+    }
+  | { type: 'textarea'; id: string; placeholder?: string; bind: string; layout?: UiLayoutProps; style?: UiStyleProps }
+  | {
+      type: 'button';
+      id: string;
+      text: string;
+      /** Action da chiamare nel codice. Opzionale se "navigate" è presente. */
+      action?: string;
+      /** Naviga direttamente a questa schermata (solo dentro navigator). "__back" per tornare indietro. */
+      navigate?: string;
+      actionInput?: Record<string, unknown>;
+      variant?: 'primary' | 'secondary' | 'danger';
+      layout?: UiLayoutProps;
+      style?: UiStyleProps;
+    }
+  | { type: 'list'; id?: string; bind: string; emptyText?: string; layout?: UiLayoutProps }
+  | {
+      type: 'box';
+      id?: string;
+      direction?: 'row' | 'column';
+      gap?: number;
+      padding?: number;
+      wrap?: boolean;
+      alignItems?: 'stretch' | 'flex-start' | 'flex-end' | 'center' | 'baseline';
+      justifyContent?:
+        | 'flex-start'
+        | 'flex-end'
+        | 'center'
+        | 'space-between'
+        | 'space-around'
+        | 'space-evenly';
+      components: UiNode[];
+      layout?: UiLayoutProps;
+    }
+  | { type: 'card'; id?: string; components: UiNode[]; layout?: UiLayoutProps; style?: UiStyleProps }
+  | { type: 'image'; id?: string; bind: string; height?: number; layout?: UiLayoutProps }
+  | { type: 'audioRecorder'; id?: string; statusBind?: string; layout?: UiLayoutProps }
+  | { type: 'qrScanner'; id?: string; hint?: string; layout?: UiLayoutProps }
+  | {
+      type: 'gamepad';
+      id?: string;
+      /**
+       * Layout dei tasti:
+       * - 'row'   → riga orizzontale (default, 2-4 tasti: sinistra/destra/azione)
+       * - 'dpad'  → croce direzionale (4 tasti: su/giù/sinistra/destra) + tasti extra a destra
+       * - 'split' → metà sinistra e metà destra dello schermo (ideal per controllare con i pollici)
+       */
+      direction?: 'row' | 'dpad' | 'split';
+      buttons: {
+        id: string;
+        label: string;
+        /** Action da chiamare. Stringa vuota = tasto decorativo senza azione. */
+        action: string;
+        /** Se true, l'action si ripete ogni holdMs ms finché il tasto è tenuto premuto. */
+        hold?: boolean;
+        /** Millisecondi tra ripetizioni in modalità hold (default: 80). */
+        holdMs?: number;
+        style?: UiStyleProps;
+      }[];
+      /** Dimensione dei tasti in px (default 64). */
+      buttonSize?: number;
+      layout?: UiLayoutProps;
+    }
+  | {
+      type: 'gameView';
+      id?: string;
+      /** Chiave di stato che contiene l'array di oggetti scena da disegnare. */
+      bind: string;
+      width?: number;
+      height?: number;
+      /** Millisecondi tra un tick e l'altro (default 50 = 20fps). Min 16ms. */
+      tickMs?: number;
+      /** Nome dell'action chiamata ad ogni tick del loop di gioco. */
+      tickAction?: string;
+      /** Nome dell'action chiamata al tap sul canvas; riceve { x, y } nell'input. */
+      onTapAction?: string;
+      layout?: UiLayoutProps;
+    };
