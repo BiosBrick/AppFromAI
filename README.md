@@ -1,124 +1,89 @@
-# OpenAppO — Describe it. Build it. Use it.
+<div align="center">
 
-> **The AI-powered mobile app factory that runs inside your phone.**
-> Type a sentence. Get a fully functional app. No code. No waiting.
+# AppFromAI
 
----
+### *Describe it. Build it. Run it. Instantly.*
 
-## What is OpenAppO?
+**The AI-powered mobile app factory that lives inside your phone.**  
+Type a sentence in plain language. Get a fully functional, native mobile app.  
+No code. No cloud. No waiting.
 
-OpenAppO is a **meta-app**: a single mobile application that generates, installs, and runs other apps on demand — all from a natural language prompt.
+<br/>
 
-You describe what you want. An AI builds it in real time. The result is a native, interactive module that lives inside OpenAppO and has access to your camera, microphone, GPS, sensors, file storage, and more.
+[![React Native](https://img.shields.io/badge/React%20Native-0.81-61dafb?style=flat-square&logo=react)](https://reactnative.dev)
+[![Expo SDK](https://img.shields.io/badge/Expo%20SDK-54-000020?style=flat-square&logo=expo)](https://expo.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
+[![Zod](https://img.shields.io/badge/Zod-v4-3068b7?style=flat-square)](https://zod.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 
-No web view. No server rendering. Real native UI, running locally on your device.
-
-```
-"Create an audio recorder that plays back what I recorded"
-                        ↓
-         AI generates JSON + JavaScript
-                        ↓
-     OpenAppO validates, compiles, and runs it
-                        ↓
-         A real app. On your phone. In seconds.
-```
+</div>
 
 ---
 
-## Why it's different
+## What is AppFromAI?
 
-| Feature | OpenAppO | Typical AI app builders |
-|---|---|---|
-| Runs 100% on-device | ✅ | ❌ (server-rendered) |
-| Access to native hardware | ✅ | ❌ |
-| No new APK to install | ✅ | ❌ |
-| Modules talk to each other | ✅ | ❌ |
-| Works with local LLMs (Ollama) | ✅ | ❌ |
+**AppFromAI** is a **meta-app**: a single mobile application that generates, validates, and runs other apps on demand — all from a natural language description, entirely on your device.
+
+You don't browse templates. You don't configure a drag-and-drop builder. You don't wait for a cloud server to render something.
+
+You just *describe what you want*, and AppFromAI builds it — right there, right now, running natively on your phone.
+
+```
+"Create a field inspection app: take a photo, save GPS coordinates,
+ add notes, and show a summary I can share."
+                              ↓
+              AI generates JSON UI + JavaScript logic
+                              ↓
+     AppFromAI validates, compiles, and runs it in a secure sandbox
+                              ↓
+         A real, interactive, hardware-connected app.
+               On your phone. In under 30 seconds.
+```
+
+Every generated app — called a **module** — is a first-class citizen. It has its own screen, its own persistent state, its own access to native device hardware, and it can even call other modules like functions.
+
+---
+
+## Why AppFromAI is different
+
+Most "AI app builders" generate a React component that looks like an app, but lives in a browser tab on a server you don't control.
+
+AppFromAI is fundamentally different:
+
+| Capability | AppFromAI | Typical AI builders |
+|---|:---:|:---:|
+| 100% on-device execution | ✅ | ❌ |
+| Real native UI (not WebView) | ✅ | ❌ |
+| Access to camera, GPS, microphone, sensors | ✅ | ❌ |
+| Works with a local LLM (Ollama) | ✅ | ❌ |
+| No new APK / IPA to install per app | ✅ | ❌ |
+| Modules compose and call each other | ✅ | ❌ |
+| Works fully offline | ✅ | ❌ |
 | Open source | ✅ | ❌ |
+| Multi-language UI (🇮🇹 🇬🇧 🇪🇸 🇫🇷 🇩🇪) | ✅ | ❌ |
 
 ---
 
-## What modules can do
+## What you can build — in one sentence
 
-Every generated module gets access to a rich, sandboxed API:
+AppFromAI can generate an enormous range of apps on the fly. Here are just a few examples of what you can type:
 
-| Capability | API |
-|---|---|
-| Camera & photos | `api.camera.takePhoto()` |
-| Audio recording & playback | `api.audioRecorder` / `api.audioPlayer` |
-| GPS & location | `api.location.getCurrentPosition()` |
-| Device sensors | `api.sensors.getAccelerometer()` … |
-| Persistent file storage | `api.files.save(key, uri)` |
-| Key-value storage | `api.storage.save / load / list` |
-| Push & local notifications | `api.notifications.schedule()` |
-| Text-to-speech | `api.tts.speak()` |
-| Haptic feedback | `api.haptics.impact()` |
-| Clipboard | `api.clipboard.set / get` |
-| Share sheet | `api.share.text / file` |
-| QR / barcode scanner | `api.qrScanner.scan()` |
-| Torch / flashlight | `api.torch.setEnabled()` |
-| HTTP fetch | `api.network.fetch()` |
-| Phone / SMS / email | `api.linking.dialPhone / sendSms / composeEmail` |
-| **Call other modules** | `api.modules.run(id, action, input)` |
+- *"A voice memo app that records, saves, and plays back audio"*
+- *"A Flappy Bird-style game with on-screen gamepad controls"*
+- *"A QR code scanner that saves every scan to a history list"*
+- *"A calorie tracker with a searchable food log and daily total"*
+- *"A field inspection tool: photo + GPS + notes + shareable report"*
+- *"A flashlight with an SOS Morse code mode"*
+- *"A habit tracker with streaks and push notification reminders"*
+- *"A bouncing ball physics sandbox I can tap to control"*
 
-All capabilities are **permission-gated**: the user sees exactly what a module wants to access before it runs.
+If it fits on a mobile screen and uses hardware you have, AppFromAI can build it.
 
 ---
 
-## Module-to-module communication
+## The module system
 
-The killer feature: modules can call each other like functions.
-
-```js
-// Inside any module's action
-const result = await api.modules.run("calculate-tax", "compute", { amount: 100 });
-// → { total: 122, tax: 22 }
-```
-
-This enables **pipelines**: snap a photo → analyse it → save the result → send a notification. Each step is a separate module, composable at runtime without writing a single line of integration code.
-
----
-
-## Tech stack
-
-- **React Native + Expo SDK 54** — runs on iOS, Android, and web
-- **Expo Router v6** — file-based navigation
-- **Hermes JS engine** — fast, lightweight JS sandbox for module execution
-- **Zod v4** — strict schema validation of every AI-generated module
-- **AsyncStorage + expo-file-system** — persistent module storage
-- **Ollama / OpenAI-compatible APIs** — bring your own LLM
-
----
-
-## Getting started
-
-```bash
-git clone https://github.com/your-username/openappo
-cd openappo
-npm install
-npx expo start
-```
-
-Scan the QR code with **Expo Go** or run `npx expo run:android` for a full development build.
-
-### Use a local LLM (recommended)
-
-1. Install [Ollama](https://ollama.com) and pull a model:
-   ```bash
-   ollama pull gemma3:4b
-   ```
-2. In the app: disable mock, select **Ollama**, set the URL to your machine's local IP (e.g. `http://192.168.1.20:11434`).
-3. Copy `.env.example` → `.env` and set `EXPO_PUBLIC_OLLAMA_URL` and `EXPO_PUBLIC_OLLAMA_MODEL`.
-
-### Use OpenAI or any compatible API
-
-Set your provider to **OpenAI** in settings and enter your API endpoint.
-
----
-
-## How a module looks
-
-Every module is a single JSON object: a manifest, a declarative UI tree, and a JavaScript logic string. The AI generates all three at once.
+Every generated app is a **module** — a single, self-contained JSON object with three parts:
 
 ```json
 {
@@ -130,70 +95,304 @@ Every module is a single JSON object: a manifest, a declarative UI tree, and a J
     "permissions": ["audioRecorder", "storage"]
   },
   "ui": {
-    "type": "screen",
-    "title": "Voice Notes",
-    "components": [
-      { "type": "text", "bind": "status", "text": "Ready" },
-      { "type": "button", "id": "rec", "text": "Record", "action": "startRec" },
-      { "type": "button", "id": "stop", "text": "Stop & Save", "action": "stopRec" },
-      { "type": "button", "id": "play", "text": "Play Last", "action": "playLast" }
-    ]
+    "type": "navigator",
+    "initialScreen": "home",
+    "screens": {
+      "home": {
+        "type": "screen",
+        "title": "Voice Notes",
+        "onFocus": "loadNotes",
+        "components": [
+          { "type": "list", "bind": "notes", "emptyText": "No recordings yet" },
+          { "type": "button", "id": "rec", "text": "Record", "action": "startRecording" }
+        ]
+      },
+      "record": {
+        "type": "screen",
+        "title": "Recording",
+        "components": [
+          { "type": "text", "bind": "status", "text": "Ready" },
+          { "type": "button", "id": "stop", "text": "Stop & Save", "action": "stopRecording" }
+        ]
+      }
+    }
   },
-  "code": "module.exports = { actions: { ... } };"
+  "code": "module.exports = { actions: { async loadNotes(api, input, state) { ... }, async startRecording(api, input, state) { ... }, async stopRecording(api, input, state) { ... } } };"
 }
 ```
 
+**The manifest** declares identity and permissions.  
+**The UI** is a declarative tree of native components — screens, inputs, buttons, lists, images, even a full game canvas with a physics ticker.  
+**The code** is JavaScript that runs in a secure sandbox, calling a rich, permission-gated API.
+
+The AI generates all three at once. AppFromAI validates and compiles them before anything runs.
+
 ---
 
-## Security model
+## Native capabilities — the full API
 
-OpenAppO runs AI-generated code, so every layer has explicit safeguards:
+Every module has access to a rich set of native capabilities, each gated behind explicit user consent:
 
-- **Static scan** — `eval`, `Function`, `require`, `import`, `process`, and other dangerous patterns are blocked before saving
-- **Permission gate** — users see a native consent screen before any module accesses hardware
-- **Capability sandbox** — modules can only call APIs explicitly declared in their manifest
-- **Action timeout** — every action is killed after 8 seconds
-- **Result validation** — action return values must be JSON-serializable
-- **Module depth limit** — cross-module calls are capped at 3 levels to prevent infinite recursion
+| Capability | API |
+|---|---|
+| 📷 Camera & photos | `api.camera.takePhoto()` |
+| 🎙️ Audio recording | `api.audioRecorder.start()` / `.stop()` |
+| 🔊 Audio playback | `api.audioPlayer.play(uri)` |
+| 📍 GPS & location | `api.location.getCurrentPosition()` |
+| 🧭 Motion & sensors | `api.sensors.getAccelerometer()` |
+| 💾 File storage | `api.files.save(key, uri)` |
+| 🗄️ Key-value storage | `api.storage.save / load / list / delete` |
+| 🔔 Push notifications | `api.notifications.schedule(title, body, delay)` |
+| 🗣️ Text-to-speech | `api.tts.speak(text, { language: 'en-US' })` |
+| 📳 Haptic feedback | `api.haptics.impact('medium')` |
+| 📋 Clipboard | `api.clipboard.set(text)` / `.get()` |
+| 🔗 Share sheet | `api.share.text(str)` / `.file(uri)` |
+| 📷 QR / barcode scanner | `api.qrScanner.scan()` |
+| 🔦 Torch / flashlight | `api.torch.setEnabled(true)` |
+| 🌐 HTTP network fetch | `api.network.fetch(url, options)` |
+| 📞 Phone / SMS / email | `api.linking.dialPhone / sendSms / composeEmail` |
+| 🤖 Cross-module calls | `api.modules.run(id, action, input)` |
 
-> **Note:** `new Function` is not a VM-level sandbox. For production deployments handling untrusted content, consider signed bytecode or a restricted interpreter.
+---
+
+## The game engine — yes, you can build games
+
+AppFromAI ships with a built-in **game canvas** component (`gameView`) and an **on-screen gamepad** (`gamepad`), giving the AI everything it needs to generate fully playable 2D games.
+
+The game engine is declarative: the AI describes the scene as an array of objects (rectangles, circles, text labels), and AppFromAI renders them at up to 60fps. Physics, input, collision, scoring — all in JavaScript, all generated on the fly.
+
+```
+"Create a Flappy Bird clone with on-screen arrow controls,
+ pipes that speed up over time, and a high-score counter."
+```
+
+AppFromAI generates the game loop, the renderer, the gamepad layout, the score state, and the collision logic — all in one shot.
+
+**Gamepad layouts:**
+- `row` — horizontal button row (left / right / jump)
+- `dpad` — cross layout (↑ ← → ↓) for 4-directional movement
+- `split` — two-thumb layout (left half / right half of screen)
+
+Buttons support **hold mode**: the action fires repeatedly while the button is pressed, at a configurable rate — perfect for smooth character movement.
+
+---
+
+## Multi-screen navigation
+
+AppFromAI modules support full **multi-screen navigation** via a declarative `navigator` root, with automatic back-button management.
+
+```
+Home screen (list of items)
+    │
+    └──▶ Detail screen (edit / view)
+              │
+              └──▶ (save and go back → list auto-refreshes)
+```
+
+The `onFocus` hook ensures that any screen that shows data from storage **automatically reloads** every time it becomes active — whether it's the first visit or a return from a child screen. No boilerplate, no manual refresh triggers.
+
+---
+
+## Module-to-module communication
+
+The most powerful feature: **modules can call each other like functions** at runtime.
+
+```js
+// Inside any module's action
+const result = await api.modules.run("tax-calculator", "compute", { amount: 500 });
+// → { total: 610, vatAmount: 110 }
+```
+
+This enables runtime composition:  
+**snap a photo → run it through an OCR module → save the result → send a notification**  
+Each step is an independent module, composable without integration code.
+
+---
+
+## Security — every layer, explicitly hardened
+
+AppFromAI runs AI-generated code on your device. That requires a serious, layered security model.
+
+**Before a module is saved:**
+- `eval`, `Function`, `new Function`, `require`, `import`, `process`, `global`, `__dirname` — all statically blocked
+- The entire module is Zod-validated against a strict schema
+- Every declared UI action must exist in the compiled code
+
+**Before a module runs:**
+- A native permission consent screen shows the user exactly what hardware/data the module wants
+- Only permissions declared in the manifest and granted by the user are active
+
+**While a module runs:**
+- The sandbox API is the only interface to native capabilities — no direct OS access
+- Actions are killed after 8 seconds
+- Return values must be JSON-serializable
+- Cross-module call depth is capped at 3 levels
+
+**In the UI:**
+- The renderer validates every node type before rendering
+- Unknown or malformed nodes are silently dropped — the app never crashes on bad AI output
+
+---
+
+## AI provider flexibility
+
+AppFromAI works with any LLM that can produce structured JSON — with built-in retry logic and error recovery:
+
+| Provider | How |
+|---|---|
+| **Ollama** (local) | Any model via `/api/chat` — runs on your own hardware, fully private |
+| **OpenAI** | Any OpenAI-compatible API endpoint |
+| **Claude** | Anthropic Messages API |
+| **Mock mode** | Instant, offline demo modules for testing — no AI needed |
+
+The generation pipeline includes automatic retry with targeted hints on failure: if the JSON is truncated, if an action is missing, if the code has a runtime error — AppFromAI tells the model exactly what went wrong and asks it to regenerate intelligently.
+
+---
+
+## Multi-language UI
+
+AppFromAI ships with a full internationalization system. The entire interface — tabs, buttons, alerts, permission screens, error messages — is available in:
+
+🇮🇹 Italiano · 🇬🇧 English · 🇪🇸 Español · 🇫🇷 Français · 🇩🇪 Deutsch
+
+Language is auto-detected from the device locale, and can be overridden at any time in Settings.
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| UI framework | React Native 0.81 + Expo SDK 54 |
+| Navigation | Expo Router v6 (file-based) |
+| JS engine | Hermes — lightweight, fast, sandboxed |
+| Schema validation | Zod v4 — strict, typed, zero-tolerance |
+| Persistent storage | AsyncStorage + expo-file-system |
+| Audio | expo-av |
+| Camera / QR | expo-camera |
+| Location | expo-location |
+| Sensors | expo-sensors |
+| Notifications | expo-notifications |
+| Haptics / TTS | expo-haptics + expo-speech |
+| Language | TypeScript 5.9, strict mode |
+
+---
+
+## Getting started
+
+```bash
+git clone https://github.com/your-username/AppFromAI
+cd AppFromAI
+npm install
+npx expo start
+```
+
+Scan the QR code with **Expo Go**, or run a full dev build:
+
+```bash
+npx expo run:ios      # iOS
+npx expo run:android  # Android
+```
+
+### Use a local LLM (recommended — fully private)
+
+1. Install [Ollama](https://ollama.com) on your Mac or PC and pull a model:
+   ```bash
+   ollama pull gemma3:4b
+   # or: ollama pull mistral, llama3.2, etc.
+   ```
+2. Open AppFromAI → **Settings** → select **Ollama**
+3. Set the URL to your machine's local IP:
+   - Real device: `http://192.168.1.x:11434`
+   - Android emulator: `http://10.0.2.2:11434`
+4. Set the model name to match `ollama list`
+
+### Use OpenAI or Claude
+
+Set your provider in Settings and enter your API key and endpoint. Any OpenAI-compatible API works.
 
 ---
 
 ## Project structure
 
 ```
-app/               Expo Router screens (tabs + module runner)
+app/
+  (tabs)/
+    index.tsx        Generate screen — the main prompt interface
+    modules.tsx      Module library — browse, open, delete
+    settings.tsx     AI provider, language, mock mode
+  module/[id].tsx    Module runner — permission gate + live renderer
+  _layout.tsx        Root layout, providers
+
 src/
-  ai/              LLM client, system prompt, mock generator
-  capabilities/    motherApi — all native capabilities
-  modules/         store, validator, runner (compile + execute)
-  renderer/        JSON UI → React Native components
-  security/        static code scanner, permission helpers
-  types/           Zod schemas + TypeScript types
-examples/          Ready-to-import module JSON files
+  ai/
+    aiClient.ts      LLM request pipeline (Ollama / OpenAI / Claude)
+    modulePrompt.ts  System prompt engineering — the full generation contract
+    mockModules.ts   Offline demo modules
+    normalizeGeneratedModule.ts  Pre-Zod normalization & type coercion
+
+  capabilities/
+    motherApi.ts     The full sandboxed API exposed to module code
+    capabilityRegistry.ts  Lifecycle management for active sensors/streams
+
+  modules/
+    moduleStore.ts   AsyncStorage persistence for saved modules
+    moduleValidator.ts  Zod + static scan + action cross-validation
+    moduleRunner.ts  new Function compilation + action execution
+
+  renderer/
+    DynamicRenderer.tsx   State machine, navigator, action runner
+    components.tsx        JSON UI tree → React Native components
+    ModulePermissionGate.tsx  Native consent UI before hardware access
+
+  security/
+    codeScanner.ts   Static pattern blacklist (eval, Function, etc.)
+    runtimePermissions.ts  Native OS permission prefetch
+
+  i18n/
+    translations.ts  All UI strings in 5 languages
+    useI18n.ts       Language hook with auto-detect
+
+  settings/
+    settingsStore.ts   AsyncStorage persistence for app settings
+    SettingsContext.tsx  React context for settings
+
+  types/
+    uiNodes.ts       TypeScript types for the full UI node tree
+    generatedModule.ts  Zod schemas for the complete module format
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] AI Vision — `api.ai.describe(photoUri)` sends a photo to the LLM and returns structured data
-- [ ] SQLite — real relational database for complex data modules
-- [ ] Biometric auth — Face ID / fingerprint gate per module
-- [ ] Scheduler — run module actions on a cron schedule in the background
-- [ ] Charts — native chart component in the declarative UI tree
-- [ ] Module marketplace — share and import modules from a community registry
+- [ ] **AI Vision** — `api.ai.describe(photoUri)` sends a photo to a vision model and returns structured data as module state
+- [ ] **SQLite** — real relational database for modules that need complex queries
+- [ ] **Biometric lock** — Face ID / fingerprint gate per module
+- [ ] **Background scheduler** — run module actions on a cron schedule
+- [ ] **Chart component** — bar, line, and pie charts in the declarative UI tree
+- [ ] **Module marketplace** — share, discover, and import community modules
+- [ ] **Signed modules** — cryptographic signing for trusted module distribution
+- [ ] **AI debugging** — when a module crashes, automatically send the error to the LLM and apply the fix
 
 ---
 
 ## Contributing
 
-PRs, issues, and module examples are all welcome.  
-If you build something cool with OpenAppO, open a PR to add it to `examples/`.
+All contributions are welcome — bug fixes, new capabilities, new UI components, module examples, translations, and documentation.
+
+If you build something great with AppFromAI, open a PR to add it to the `examples/` folder. Every cool example makes the tool more powerful for everyone.
 
 ---
 
 ## License
 
-MIT
+MIT — use it, fork it, ship it, build on it.
+
+---
+
+<div align="center">
+
+**AppFromAI** — *Every app you ever needed. One sentence away.*
+
+</div>
