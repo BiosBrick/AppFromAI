@@ -424,6 +424,18 @@ MIT — use it, fork it, ship it, build on it.
 
 ---
 
+## Vision
+
+I believe we're moving toward a future where phones don't come with apps — they generate them.
+
+When you need something, your device builds it for you, tailored to exactly what you asked, runs it, and discards it when you're done. No App Store. No installations. No one-size-fits-all software designed for the average of everyone and perfect for no one.
+
+AppFromAI is an early, open-source experiment in that direction. It's rough around the edges — but the core idea works. Type a sentence. Get a real app. Today, on your phone.
+
+That's where we're going.
+
+---
+
 ## Disclaimer
 
 AppFromAI is an independent open-source project and is **not affiliated with, endorsed by, or officially connected to** OpenAI, Anthropic, or Ollama in any way.
