@@ -88,7 +88,7 @@ AppFromAI is fundamentally different:
 
 <div align="center">
 
-<video src="docs/video/video.mp4" controls width="600"></video>
+<video src="https://github.com/user-attachments/assets/8cee08c2-1186-434f-913f-71df0def0099" controls width="600"></video>
 
 > *From a single sentence to a fully working native app — in under 30 seconds.*
 
