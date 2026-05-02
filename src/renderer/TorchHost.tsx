@@ -93,6 +93,10 @@ export function TorchHost() {
     };
   }, [armTorch]);
 
+  // Non montare CameraView finché non serve: su Android il semplice mount
+  // inizializza l'hardware e accende il LED di privacy anche con active={false}.
+  if (!cameraActive) return null;
+
   return (
     <View pointerEvents="none" style={styles.wrap}>
       <CameraView

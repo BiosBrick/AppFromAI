@@ -84,6 +84,18 @@ AppFromAI is fundamentally different:
 
 ---
 
+## Demo
+
+<div align="center">
+
+<video src="docs/video/video.mp4" controls width="600"></video>
+
+> *From a single sentence to a fully working native app — in under 30 seconds.*
+
+</div>
+
+---
+
 ## What you can build — in one sentence
 
 AppFromAI can generate an enormous range of apps on the fly. Here are just a few examples of what you can type:
