@@ -30,8 +30,8 @@
     "android": {
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0f1f4a"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
