@@ -16,7 +16,7 @@ No code. No cloud. No waiting.
 [![Expo SDK](https://img.shields.io/badge/Expo%20SDK-54-000020?style=flat-square&logo=expo)](https://expo.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
 [![Zod](https://img.shields.io/badge/Zod-v4-3068b7?style=flat-square)](https://zod.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green?style=flat-square)](./LICENSE)
 [![Android](https://img.shields.io/badge/Android-tested-3ddc84?style=flat-square&logo=android)](https://www.android.com)
 [![iOS](https://img.shields.io/badge/iOS-not%20yet%20tested-lightgrey?style=flat-square&logo=apple)](https://www.apple.com/ios)
 
@@ -443,7 +443,7 @@ If you build something great with AppFromAI, open a PR to add it to the `example
 
 ## License
 
-MIT — use it, fork it, ship it, build on it.
+Apache 2.0 — use it, fork it, ship it, build on it.
 
 ---
 
