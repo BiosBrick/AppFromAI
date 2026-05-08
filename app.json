@@ -23,7 +23,11 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
-        "LSApplicationQueriesSchemes": ["mailto", "tel", "sms"]
+        "LSApplicationQueriesSchemes": [
+          "mailto",
+          "tel",
+          "sms"
+        ]
       },
       "bundleIdentifier": "com.afi.appfromai"
     },
@@ -77,7 +81,8 @@
           "icon": "./assets/icon.png",
           "color": "#111827"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {}

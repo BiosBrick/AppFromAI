@@ -1,11 +1,12 @@
 import React from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { useI18n } from '../../src/i18n/useI18n';
 import { LANGUAGES, type Language } from '../../src/i18n/translations';
+import { useDeviceLayout } from '../../src/utils/deviceLayout';
 
 const C = {
   bg: '#0b1120',
@@ -113,6 +114,7 @@ function LangOption({
 export default function SettingsScreen() {
   const { settings, updateSettings } = useSettings();
   const { t } = useI18n();
+  const { isTablet } = useDeviceLayout();
 
   const currentLang = settings.language || '';
 
@@ -126,7 +128,10 @@ export default function SettingsScreen() {
         <Text style={s.h1}>{t.settingsTitle}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* ── Language ── */}
         <Section title={t.sectionLanguage}>
@@ -150,25 +155,8 @@ export default function SettingsScreen() {
           ))}
         </Section>
 
-        {/* ── Modalità ── */}
-        <Section title={t.sectionMode}>
-          <Row
-            label={t.mockLabel}
-            hint={t.mockHint}
-            last
-          >
-            <Switch
-              value={settings.useMock}
-              onValueChange={(v) => updateSettings({ useMock: v })}
-              trackColor={{ false: C.border, true: C.primary }}
-              thumbColor="#fff"
-            />
-          </Row>
-        </Section>
-
-        {/* ── Provider (hidden when mock is on) ── */}
-        {!settings.useMock ? (
-          <>
+        {/* ── Provider ── */}
+        <>
             <Section title={t.sectionProvider}>
               <ProviderOption
                 value="ollama"
@@ -299,8 +287,7 @@ export default function SettingsScreen() {
                 </View>
               </Section>
             ) : null}
-          </>
-        ) : null}
+        </>
 
         {/* ── Info ── */}
         <Section title={t.sectionInfo}>
@@ -310,7 +297,7 @@ export default function SettingsScreen() {
         </Section>
 
         {/* Security notice */}
-        <View style={s.notice}>
+        <View style={[s.notice, isTablet && s.noticeTablet]}>
           <Ionicons name="shield-checkmark-outline" size={16} color={C.faint} />
           <Text style={s.noticeText}>{t.securityNotice}</Text>
         </View>
@@ -337,6 +324,7 @@ const s = StyleSheet.create({
   h1: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
 
   scroll: { padding: 16, gap: 20, paddingBottom: 32 },
+  scrollTablet: { maxWidth: 560, width: '100%', alignSelf: 'center' },
 
   section: { gap: 7 },
   sectionTitle: {
@@ -426,4 +414,5 @@ const s = StyleSheet.create({
     alignItems: 'flex-start',
   },
   noticeText: { flex: 1, color: C.faint, fontSize: 12, lineHeight: 18 },
+  noticeTablet: { maxWidth: 560, alignSelf: 'center', width: '100%' },
 });

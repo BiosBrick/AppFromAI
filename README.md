@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/screenshots/icon.png" width="120" alt="AppFromAI logo" />
+
 # AppFromAI
 
 ### *Describe it. Build it. Run it. Instantly.*
@@ -199,6 +201,13 @@ The game engine is declarative: the AI describes the scene as an array of object
 ```
 
 AppFromAI generates the game loop, the renderer, the gamepad layout, the score state, and the collision logic — all in one shot.
+
+**Recent game engine additions:**
+- Per-object physics (`vx`, `vy`, `gravity`) applied automatically every tick — no manual physics code needed
+- `fps` property on `gameView` to set frame rate declaratively (10–60 fps)
+- `onCollideAction` — fired automatically on AABB overlap between any two identified objects
+- `onOutOfBoundsAction` — fired when an object leaves the canvas bounds
+- Global `gravity` on the `gameView` node, applied to all objects at once
 
 **Gamepad layouts:**
 - `row` — horizontal button row (left / right / jump)
@@ -403,6 +412,7 @@ src/
 ## Roadmap
 
 ### 🧩 New UI components
+- [x] **WebView** — embed any website or web content inline inside a generated module; the AI can generate a `webview` node that opens in an in-app browser with a single tap
 - [ ] **Charts** — bar, line, and pie chart components in the declarative UI tree; generated modules can visualize data without a single line of chart code
 - [ ] **Map view** — display GPS coordinates and routes on an interactive map, directly inside any generated module
 - [ ] **Rich list items** — list rows with avatar, subtitle, badge, and swipe-to-delete, so the AI can generate beautiful data-driven apps instead of plain text lists
@@ -413,6 +423,7 @@ src/
 - [ ] **Biometric lock** — protect individual modules with Face ID or fingerprint; one setting, zero code
 
 ### 🤝 Sharing & community
+- [x] **Module rename** — tap the module name to rename it directly from the library screen, without regenerating
 - [ ] **Module export & import** — export any module as a single JSON file and share it via AirDrop, link, or QR code; anyone with AppFromAI can import and run it instantly
 - [ ] **Module marketplace** — a curated feed of community-built modules; browse, preview, and install in one tap
 

@@ -12,6 +12,7 @@ import { DynamicRenderer } from '../../src/renderer/DynamicRenderer';
 import { ModulePermissionGate } from '../../src/renderer/ModulePermissionGate';
 import { prefetchNativePermissions } from '../../src/security/runtimePermissions';
 import { useI18n } from '../../src/i18n/useI18n';
+import { useDeviceLayout } from '../../src/utils/deviceLayout';
 
 const C = {
   bg: '#0b1120',
@@ -21,6 +22,7 @@ const C = {
 
 export default function ModuleScreen() {
   const { t } = useI18n();
+  const { isTablet } = useDeviceLayout();
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [mod, setMod] = useState<Awaited<ReturnType<typeof getModule>>>(null);
@@ -114,7 +116,7 @@ export default function ModuleScreen() {
           busy={gateBusy}
         />
       ) : motherApi ? (
-        <View style={styles.body}>
+        <View style={[styles.body, isTablet && styles.bodyTablet]}>
           <DynamicRenderer ui={mod.ui} code={mod.code} motherApi={motherApi} />
         </View>
       ) : null}
@@ -128,4 +130,5 @@ const styles = StyleSheet.create({
   notFound: { color: C.text, fontSize: 18, fontWeight: '700' },
   notFoundSub: { color: C.muted, fontSize: 14 },
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  bodyTablet: { maxWidth: 860, alignSelf: 'center', width: '100%' },
 });

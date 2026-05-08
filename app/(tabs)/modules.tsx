@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   Alert,
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -14,9 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { deleteModule, listModules } from '../../src/modules/moduleStore';
+import { deleteModule, listModules, saveModule } from '../../src/modules/moduleStore';
 import type { StoredModule } from '../../src/types/generatedModule';
 import { useI18n } from '../../src/i18n/useI18n';
+import { useDeviceLayout } from '../../src/utils/deviceLayout';
+import { validateGeneratedModule, toStoredModule } from '../../src/modules/moduleValidator';
 
 const C = {
   bg: '#0b1120',
@@ -48,8 +52,10 @@ const PERM_ICON: Record<string, string> = {
 export default function ModulesScreen() {
   const router = useRouter();
   const { t } = useI18n();
+  const { isTablet, columns } = useDeviceLayout();
   const [modules, setModules] = useState<StoredModule[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setModules(await listModules());
@@ -88,6 +94,48 @@ export default function ModulesScreen() {
     [load, t]
   );
 
+  const onExport = useCallback(async (item: StoredModule) => {
+    try {
+      const path = `${FileSystem.cacheDirectory}${item.manifest.name.replace(/\s+/g, '_')}.afmod`;
+      await FileSystem.writeAsStringAsync(path, JSON.stringify(item), { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(path, { mimeType: 'application/json', dialogTitle: `Esporta ${item.name}` });
+    } catch {
+      Alert.alert('Errore', 'Esportazione non riuscita.');
+    }
+  }, []);
+
+  const onDownload = useCallback(async (item: StoredModule) => {
+    try {
+      const filename = `${item.manifest.name.replace(/\s+/g, '_')}.afmod`;
+      const destPath = `${FileSystem.documentDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(destPath, JSON.stringify(item, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
+      setImportMsg({ ok: true, text: `Salvato: ${filename}` });
+      setTimeout(() => setImportMsg(null), 3500);
+    } catch {
+      setImportMsg({ ok: false, text: 'Download non riuscito.' });
+    }
+  }, []);
+
+  const onImport = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const uri = result.assets[0]?.uri;
+      if (!uri) return;
+      const raw = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+      let parsed: unknown;
+      try { parsed = JSON.parse(raw); } catch { setImportMsg({ ok: false, text: 'File non valido.' }); return; }
+      const validated = validateGeneratedModule(parsed);
+      if (!validated.ok) { setImportMsg({ ok: false, text: 'Modulo non valido.' }); return; }
+      await saveModule(toStoredModule(validated.module));
+      await load();
+      setImportMsg({ ok: true, text: 'Modulo importato.' });
+      setTimeout(() => setImportMsg(null), 3000);
+    } catch {
+      setImportMsg({ ok: false, text: 'Importazione non riuscita.' });
+    }
+  }, [load]);
+
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
@@ -102,42 +150,50 @@ export default function ModulesScreen() {
             </View>
           ) : null}
         </View>
+        <Pressable style={s.importBtn} onPress={onImport}>
+          <Ionicons name="download-outline" size={16} color={C.primary} />
+          <Text style={s.importBtnText}>Importa</Text>
+        </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={modules.length === 0 ? s.scrollEmpty : s.scroll}
+      {importMsg ? (
+        <View style={[s.importBanner, importMsg.ok ? s.importBannerOk : s.importBannerErr]}>
+          <Text style={s.importBannerText}>{importMsg.text}</Text>
+        </View>
+      ) : null}
+
+      <FlatList
+        key={columns}
+        data={modules}
+        keyExtractor={(item) => item.id}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? { gap: 12, paddingHorizontal: 16 } : undefined}
+        contentContainerStyle={modules.length === 0 ? s.scrollEmpty : [s.scroll, isTablet && s.scrollTablet]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />
         }
-      >
-        {modules.length === 0 ? (
+        ListEmptyComponent={
           <View style={s.empty}>
             <View style={s.emptyIconWrapper}>
               <Ionicons name="grid-outline" size={36} color={C.faint} />
             </View>
             <Text style={s.emptyTitle}>{t.emptyTitle}</Text>
-            <Text style={s.emptyText}>
-              {t.emptyText(t.tabGenerate)}
-            </Text>
+            <Text style={s.emptyText}>{t.emptyText(t.tabGenerate)}</Text>
           </View>
-        ) : (
-          modules.map((item) => (
+        }
+        renderItem={({ item }) => (
+          <View style={columns > 1 ? { flex: 1 } : undefined}>
             <ModuleCard
-              key={item.id}
               item={item}
               onDelete={onDelete}
               onOpen={(id) => router.push(`/module/${id}`)}
-              onShare={async (mod) => {
-                const text = mod.prompt
-                  ? `${mod.name}\n\n${mod.prompt}`
-                  : mod.name;
-                await Share.share({ message: text, title: mod.name });
-              }}
+              onShare={onExport}
+              onDownload={onDownload}
             />
-          ))
+          </View>
         )}
-      </ScrollView>
+      />
     </SafeAreaView>
   );
 }
@@ -147,11 +203,13 @@ function ModuleCard({
   onDelete,
   onOpen,
   onShare,
+  onDownload,
 }: {
   item: StoredModule;
   onDelete: (item: StoredModule) => void;
   onOpen: (id: string) => void;
   onShare: (item: StoredModule) => void;
+  onDownload: (item: StoredModule) => void;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -221,11 +279,18 @@ function ModuleCard({
         <Text style={s.openText}>{t.openModule}</Text>
         <Ionicons name="arrow-forward" size={14} color={C.primary} />
         <Pressable
-          style={s.shareBtn}
-          onPress={() => onShare(item)}
+          style={s.footerBtn}
+          onPress={(e) => { e.stopPropagation?.(); onShare(item); }}
           hitSlop={10}
         >
-          <Ionicons name="share-outline" size={16} color={C.muted} />
+          <Ionicons name="share-outline" size={15} color={C.muted} />
+        </Pressable>
+        <Pressable
+          style={[s.footerBtn, s.footerBtnDownload]}
+          onPress={(e) => { e.stopPropagation?.(); void onDownload(item); }}
+          hitSlop={10}
+        >
+          <Ionicons name="cloud-download-outline" size={15} color={C.primary} />
         </Pressable>
       </View>
     </Pressable>
@@ -245,7 +310,30 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  importBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  importBtnText: { color: C.primary, fontSize: 13, fontWeight: '600' },
+  importBanner: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  importBannerOk: { backgroundColor: '#0a1f0d', borderColor: '#16a34a' },
+  importBannerErr: { backgroundColor: C.errorSurface, borderColor: C.errorBorder },
+  importBannerText: { color: C.text, fontSize: 13 },
   h1: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
   countBadge: {
     backgroundColor: C.surface,
@@ -258,6 +346,7 @@ const s = StyleSheet.create({
   countText: { color: C.muted, fontSize: 13, fontWeight: '700' },
 
   scroll: { padding: 16, gap: 12, paddingBottom: 32 },
+  scrollTablet: { paddingHorizontal: 0 },
   scrollEmpty: { flex: 1 },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 40 },
@@ -345,14 +434,18 @@ const s = StyleSheet.create({
     paddingTop: 10,
   },
   openText: { color: C.primary, fontSize: 13, fontWeight: '600', flex: 1 },
-  shareBtn: {
-    width: 32,
-    height: 32,
+  footerBtn: {
+    width: 34,
+    height: 34,
     borderRadius: 8,
     backgroundColor: C.surfaceHigh,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: C.border,
+  },
+  footerBtnDownload: {
+    backgroundColor: '#1e1b4b',
+    borderColor: '#312e81',
   },
 });

@@ -26,6 +26,8 @@ function collectButtonActions(node: UiNode): string[] {
     const acts: string[] = [];
     if (node.tickAction) acts.push(node.tickAction);
     if (node.onTapAction) acts.push(node.onTapAction);
+    if (node.onCollideAction) acts.push(node.onCollideAction);
+    if (node.onOutOfBoundsAction) acts.push(node.onOutOfBoundsAction);
     return acts;
   }
   if ('components' in node && Array.isArray(node.components)) {
@@ -60,34 +62,31 @@ export function validateGeneratedModule(raw: unknown): ValidateResult {
           ? Object.keys(normalized as object).slice(0, 30)
           : [],
     });
-    return { ok: false, error: errText };
+    return { ok: false, error: 'Il modulo generato ha una struttura non valida.' };
   }
   const scan = scanGeneratedCode(parsed.data.code);
   if (!scan.ok) {
-    const err = formatCodeScanError(scan.reason);
     reportGenAppError('moduleValidator.codeScan', new Error(scan.reason), {
       codeHead: parsed.data.code.slice(0, 800),
     });
-    return { ok: false, error: err };
+    return { ok: false, error: 'Il codice contiene istruzioni non permesse.' };
   }
 
-  // Cross-valida: ogni action dichiarata nei button deve esistere nel codice compilato.
   const compileResult = tryCompileModuleActions(parsed.data.code);
   if (!compileResult.ok) {
     reportGenAppError('moduleValidator.compile', new Error(compileResult.error), {
       codeHead: parsed.data.code.slice(0, 800),
     });
-    return { ok: false, error: compileResult.error };
+    return { ok: false, error: 'Il codice del modulo non è eseguibile.' };
   }
   const uiActions = [...new Set(collectButtonActions(parsed.data.ui))];
   const missing = uiActions.filter((a) => !(a in compileResult.actions));
   if (missing.length > 0) {
-    const err = `Azioni nell'UI non trovate nel codice: ${missing.join(', ')}. Rigenerare il modulo.`;
-    reportGenAppError('moduleValidator.actionMismatch', new Error(err), {
+    reportGenAppError('moduleValidator.actionMismatch', new Error(`Azioni mancanti: ${missing.join(', ')}`), {
       uiActions,
       compiledActions: Object.keys(compileResult.actions),
     });
-    return { ok: false, error: err };
+    return { ok: false, error: 'Le azioni del modulo non corrispondono al codice.' };
   }
 
   return { ok: true, module: parsed.data };

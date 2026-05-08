@@ -16,10 +16,10 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { generateModule } from '../../src/ai/aiClient';
 import { saveModule } from '../../src/modules/moduleStore';
-import { getJsonResponseRetryHint } from '../../src/ai/modulePrompt';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { DinoGame } from '../../src/components/DinoGame';
 import { useI18n } from '../../src/i18n/useI18n';
+import { useDeviceLayout } from '../../src/utils/deviceLayout';
 
 /* ── Design tokens ── */
 const C = {
@@ -44,6 +44,7 @@ const C = {
 export default function GeneraScreen() {
   const { settings } = useSettings();
   const { t } = useI18n();
+  const { isTablet } = useDeviceLayout();
   const [prompt, setPrompt] = useState('');
   const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -76,7 +77,7 @@ export default function GeneraScreen() {
     startPulse();
     try {
       const res = await generateModule(prompt.trim(), {
-        useMock: settings.useMock,
+        useMock: false,
         ...(settings.provider === 'ollama'
           ? {
               ollamaBaseUrl: settings.ollamaUrl || undefined,
@@ -109,9 +110,7 @@ export default function GeneraScreen() {
     }
   };
 
-  const providerLabel = settings.useMock
-    ? 'Mock'
-    : settings.provider === 'ollama'
+  const providerLabel = settings.provider === 'ollama'
     ? settings.ollamaModel || 'Ollama'
     : settings.provider === 'claude'
     ? settings.claudeModel || 'Claude'
@@ -127,7 +126,7 @@ export default function GeneraScreen() {
       >
         <ScrollView
           style={s.flex}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[s.scrollContent, isTablet && s.scrollTablet]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -138,7 +137,7 @@ export default function GeneraScreen() {
               <Text style={s.brand}>AppFromAI</Text>
             </View>
             <View style={s.modelPill}>
-              <View style={[s.modelDot, settings.useMock && s.modelDotMock]} />
+              <View style={s.modelDot} />
               <Text style={s.modelText}>{providerLabel}</Text>
             </View>
           </View>
@@ -215,9 +214,6 @@ export default function GeneraScreen() {
               <View style={[s.feedbackInner, s.feedbackError]}>
                 <Ionicons name="alert-circle" size={15} color={C.error} />
                 <View style={s.feedbackText}>
-                  {error !== t.errorEmpty ? (
-                    <Text style={s.feedbackHint}>{getJsonResponseRetryHint()}</Text>
-                  ) : null}
                   <Text style={s.feedbackMsg}>{error}</Text>
                 </View>
               </View>
@@ -238,7 +234,7 @@ export default function GeneraScreen() {
         </ScrollView>
 
         {/* ── CTA — always visible, outside ScrollView ── */}
-        <View style={s.footer}>
+        <View style={[s.footer, isTablet && s.footerTablet]}>
           <Pressable
             style={({ pressed }) => [
               s.btn,
@@ -273,6 +269,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
+  scrollTablet: { maxWidth: 640, width: '100%', alignSelf: 'center' },
 
   /* Top bar */
   topBar: {
@@ -308,7 +305,6 @@ const s = StyleSheet.create({
     borderColor: C.border,
   },
   modelDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary },
-  modelDotMock: { backgroundColor: '#f59e0b' },
   modelText: { color: C.muted, fontSize: 12, fontWeight: '600' },
 
   /* Hero */
@@ -483,6 +479,7 @@ const s = StyleSheet.create({
     padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 8 : 16,
   },
+  footerTablet: { maxWidth: 640, width: '100%', alignSelf: 'center' },
   btn: {
     backgroundColor: C.primary,
     borderRadius: 18,

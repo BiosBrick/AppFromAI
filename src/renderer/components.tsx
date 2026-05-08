@@ -12,6 +12,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import type { UiLayoutProps, UiNode, UiStyleProps, UiTheme } from '../types/uiNodes';
 
 export type ResolvedTheme = Required<UiTheme>;
@@ -35,6 +36,35 @@ export function resolveTheme(theme?: UiTheme): ResolvedTheme {
     text: theme.text ?? DEFAULT_THEME.text,
     muted: theme.muted ?? DEFAULT_THEME.muted,
   };
+}
+
+const PRIMARY_FIELDS = ['name', 'nome', 'title', 'titolo', 'label', 'text', 'testo', 'description', 'descrizione', 'value', 'valore', 'item', 'elemento'];
+
+function resolveListItem(item: unknown): { primary: string; secondary?: string } {
+  let resolved: unknown = item;
+  if (typeof item === 'string') {
+    const t = item.trim();
+    if (t.startsWith('{') && t.endsWith('}')) {
+      try { resolved = JSON.parse(t); } catch { /* keep as string */ }
+    }
+  }
+  if (typeof resolved === 'string') return { primary: resolved };
+  if (typeof resolved !== 'object' || resolved === null) return { primary: String(resolved) };
+  const obj = resolved as Record<string, unknown>;
+  let primary = '';
+  for (const f of PRIMARY_FIELDS) {
+    if (typeof obj[f] === 'string' && obj[f]) { primary = obj[f] as string; break; }
+  }
+  if (!primary) {
+    const first = Object.values(obj).find((v) => typeof v === 'string' && v);
+    primary = typeof first === 'string' ? first : JSON.stringify(obj);
+  }
+  const secondary = Object.entries(obj)
+    .filter(([, v]) => (typeof v === 'string' || typeof v === 'number') && v !== primary && v !== '')
+    .slice(0, 4)
+    .map(([, v]) => String(v))
+    .join(' · ') || undefined;
+  return { primary, secondary };
 }
 
 function layoutToViewStyle(layout?: UiLayoutProps): ViewStyle {
@@ -309,13 +339,20 @@ function GamepadNode({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GameView — canvas dichiarativa + game loop ticker + tap input
+// GameView — canvas dichiarativa + game loop ticker + tap input + physics
 // ─────────────────────────────────────────────────────────────────────────────
 
-type SceneRect   = { type: 'rect';   x: number; y: number; w: number; h: number; color?: string; radius?: number };
-type SceneCircle = { type: 'circle'; x: number; y: number; r: number; color?: string };
-type SceneText   = { type: 'text';   x: number; y: number; text: string; color?: string; fontSize?: number; fontWeight?: string; align?: 'left' | 'center' | 'right' };
-type SceneObj    = SceneRect | SceneCircle | SceneText;
+type SceneObj = {
+  type: 'rect' | 'circle' | 'text';
+  id?: string;
+  x: number; y: number;
+  vx?: number; vy?: number;
+  gravity?: number;
+  w?: number; h?: number; r?: number;
+  color?: string; radius?: number;
+  text?: string; fontSize?: number; fontWeight?: string;
+  align?: 'left' | 'center' | 'right';
+};
 
 function renderSceneObj(raw: unknown, i: number): ReactNode {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -405,8 +442,15 @@ function buildFallbackScene(w: number, h: number, hasTick: boolean): SceneObj[] 
   ];
 }
 
-// Suppress unused-type warnings for the scene type aliases above.
 void (0 as unknown as SceneObj);
+
+function aabbOverlap(a: SceneObj, b: SceneObj): boolean {
+  const ax1 = a.x, ax2 = a.x + (a.w ?? (a.r ?? 10) * 2);
+  const ay1 = a.y, ay2 = a.y + (a.h ?? (a.r ?? 10) * 2);
+  const bx1 = b.x, bx2 = b.x + (b.w ?? (b.r ?? 10) * 2);
+  const by1 = b.y, by2 = b.y + (b.h ?? (b.r ?? 10) * 2);
+  return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
+}
 
 function GameViewNode({
   node,
@@ -417,30 +461,91 @@ function GameViewNode({
   ctx: RenderCtx;
   nodeKey: string;
 }) {
-  // Usa un ref per onButton così il ticker non ri-crea l'interval ad ogni render.
   const onButtonRef = useRef(ctx.onButton);
   onButtonRef.current = ctx.onButton;
+  const stateRef = useRef(ctx.state);
+  stateRef.current = ctx.state;
+  const setStateRef = useRef(ctx.setState);
+  setStateRef.current = ctx.setState;
   const tickBusyRef = useRef(false);
+
+  const effectiveTickMs = node.tickMs
+    ? Math.max(16, node.tickMs)
+    : node.fps
+    ? Math.round(1000 / Math.min(60, Math.max(10, node.fps)))
+    : 50;
+
+  const gameGravity = node.gravity ?? 0;
 
   useEffect(() => {
     if (ctx.hasError) return;
-    if (!node.tickAction || !node.tickMs) return;
-    const ms = Math.max(16, node.tickMs);
+    if (!node.tickAction) return;
+
+    const gw = node.width ?? 320;
+    const gh = node.height ?? 300;
+
     const runTick = () => {
-      if (tickBusyRef.current) return;   // salta tick se il precedente è ancora in volo
+      if (tickBusyRef.current) return;
       tickBusyRef.current = true;
+
+      // Physics pre-step: applica gravità e velocità agli oggetti con vx/vy
+      const rawScene = stateRef.current[node.bind];
+      if (Array.isArray(rawScene) && (gameGravity !== 0 || rawScene.some((o: unknown) => {
+        const obj = o as SceneObj;
+        return (obj.vx != null && obj.vx !== 0) || (obj.vy != null && obj.vy !== 0) || obj.gravity != null;
+      }))) {
+        const newScene = rawScene.map((raw: unknown) => {
+          const o = raw as SceneObj;
+          if (o.vx == null && o.vy == null && o.gravity == null) return o;
+          const g = o.gravity ?? gameGravity;
+          const nvx = o.vx ?? 0;
+          const nvy = (o.vy ?? 0) + g;
+          return { ...o, x: o.x + nvx, y: o.y + nvy, vx: nvx, vy: nvy };
+        });
+
+        // Collision detection (AABB) tra oggetti con id
+        if (node.onCollideAction) {
+          const named = newScene.filter((o: unknown) => (o as SceneObj).id) as SceneObj[];
+          for (let i = 0; i < named.length; i++) {
+            for (let j = i + 1; j < named.length; j++) {
+              if (aabbOverlap(named[i], named[j])) {
+                void onButtonRef.current(node.onCollideAction!, { a: named[i].id, b: named[j].id });
+              }
+            }
+          }
+        }
+
+        // Out of bounds detection
+        if (node.onOutOfBoundsAction) {
+          for (const raw of newScene) {
+            const o = raw as SceneObj;
+            if (!o.id) continue;
+            const ow = o.w ?? (o.r ?? 10) * 2;
+            const oh = o.h ?? (o.r ?? 10) * 2;
+            if (o.x + ow < 0 || o.x > gw || o.y + oh < 0 || o.y > gh) {
+              void onButtonRef.current(node.onOutOfBoundsAction!, { id: o.id, x: o.x, y: o.y });
+            }
+          }
+        }
+
+        setStateRef.current({ [node.bind]: newScene });
+      }
+
       onButtonRef.current(node.tickAction!, {}).finally(() => {
         tickBusyRef.current = false;
       });
     };
+
     runTick();
-    const id = setInterval(runTick, ms);
+    const id = setInterval(runTick, effectiveTickMs);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.hasError, node.tickAction, node.tickMs]);
+  }, [ctx.hasError, node.tickAction, effectiveTickMs, node.bind, gameGravity, node.onCollideAction, node.onOutOfBoundsAction]);
 
   const gw = node.width  ?? 320;
   const gh = node.height ?? 300;
+  const bgColor = node.bgColor ?? '#101827';
+  const borderColor = node.borderColor ?? '#2d3f5c';
 
   const rawScene = ctx.state[node.bind];
   const scene: unknown[] =
@@ -453,12 +558,12 @@ function GameViewNode({
       style={{
         width: gw,
         height: gh,
-        backgroundColor: '#101827',
+        backgroundColor: bgColor,
         overflow: 'hidden',
         borderRadius: 12,
         alignSelf: 'center',
         borderWidth: 1,
-        borderColor: '#2d3f5c',
+        borderColor,
         ...layoutToViewStyle(node.layout),
       }}
     >
@@ -476,7 +581,7 @@ function GameViewNode({
           }}
         >
           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
-            Il gioco si e' fermato. Controlla l'errore sotto e rigenera il modulo.
+            Il gioco si è fermato. Controlla l'errore e rigenera il modulo.
           </Text>
         </View>
       ) : null}
@@ -640,15 +745,10 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
       );
 
       const onPress = () => {
-        console.log('[Button] pressed', { id: node.id, navigate: node.navigate, action: actionName });
         if (node.navigate) {
-          console.log('[Button] calling onNavigate →', node.navigate);
           ctx.onNavigate(node.navigate);
         } else if (actionName) {
-          console.log('[Button] calling onButton →', actionName);
           void ctx.onButton(actionName, node.actionInput ?? {});
-        } else {
-          console.log('[Button] no navigate and no action — nothing to do');
         }
       };
 
@@ -681,11 +781,16 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
           ListEmptyComponent={
             <Text style={{ color: t.muted, fontSize: 14 }}>{node.emptyText ?? 'Nessun elemento'}</Text>
           }
-          renderItem={({ item }) => (
-            <View style={{ paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: t.border }}>
-              <Text style={{ color: t.text }}>{typeof item === 'string' ? item : JSON.stringify(item)}</Text>
-            </View>
-          )}
+          renderItem={({ item }) => {
+            console.log('[list] item type:', typeof item, '| value:', JSON.stringify(item));
+            const { primary, secondary } = resolveListItem(item);
+            return (
+              <View style={{ paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: t.border }}>
+                <Text style={{ color: t.text, fontSize: 15 }}>{primary}</Text>
+                {secondary ? <Text style={{ color: t.muted, fontSize: 12, marginTop: 2 }}>{secondary}</Text> : null}
+              </View>
+            );
+          }}
         />
       );
     }
@@ -775,6 +880,54 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
 
     case 'gamepad':
       return <GamepadNode key={key} node={node} ctx={ctx} nodeKey={key} />;
+
+    case 'webview': {
+      const rawUrl = node.src ?? '';
+      const webUrl = rawUrl && !rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')
+        ? 'https://' + rawUrl
+        : rawUrl;
+      const displayUrl = webUrl.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+      const openBrowser = async () => {
+        if (!webUrl) return;
+        try {
+          await WebBrowser.openBrowserAsync(webUrl);
+        } catch {
+          // silently ignore
+        }
+      };
+      return (
+        <Pressable
+          key={key}
+          onPress={() => { void openBrowser(); }}
+          style={({ pressed }) => [
+            applyStyle(
+              {
+                borderWidth: 1,
+                borderColor: t.border,
+                borderRadius: 14,
+                padding: 14,
+                backgroundColor: t.surface,
+                gap: 10,
+                alignItems: 'center',
+                flexDirection: 'row',
+                opacity: pressed ? 0.75 : 1,
+              },
+              node.style
+            ),
+            layoutToViewStyle(node.layout) as ViewStyle,
+          ]}
+        >
+          <Text style={{ fontSize: 22 }}>🌐</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: t.text, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
+              {displayUrl || webUrl}
+            </Text>
+            <Text style={{ color: t.muted, fontSize: 12, marginTop: 2 }}>Tocca per aprire nel browser</Text>
+          </View>
+          <Text style={{ color: t.primary, fontSize: 13, fontWeight: '700' }}>Apri →</Text>
+        </Pressable>
+      );
+    }
 
     default:
       return null;
