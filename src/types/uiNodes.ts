@@ -146,15 +146,60 @@ export type UiNode =
   | {
       type: 'gameView';
       id?: string;
-      /** Chiave di stato che contiene l'array di oggetti scena da disegnare. */
+      /** Chiave di stato che contiene l'array di SceneObject da disegnare. */
       bind: string;
       width?: number;
       height?: number;
-      /** Millisecondi tra un tick e l'altro (default 50 = 20fps). Min 16ms. */
+      /** Millisecondi tra un tick e l'altro (default 50 = 20fps). Min 16ms. Precede fps. */
       tickMs?: number;
+      /** Frame rate target (10-60, default 20). Ignorato se tickMs è definito. */
+      fps?: number;
       /** Nome dell'action chiamata ad ogni tick del loop di gioco. */
       tickAction?: string;
       /** Nome dell'action chiamata al tap sul canvas; riceve { x, y } nell'input. */
       onTapAction?: string;
+      /** Accelerazione gravitazionale verso il basso applicata automaticamente agli oggetti con vy (default 0). */
+      gravity?: number;
+      /** Colore di sfondo del canvas (default '#101827'). */
+      bgColor?: string;
+      /** Colore del bordo del canvas. */
+      borderColor?: string;
+      /** Action chiamata quando due oggetti con id si sovrappongono; riceve { a: idA, b: idB }. */
+      onCollideAction?: string;
+      /** Action chiamata quando un oggetto con id esce dai bordi del canvas; riceve { id, x, y }. */
+      onOutOfBoundsAction?: string;
+      layout?: UiLayoutProps;
+    }
+  | {
+      type: 'webview';
+      id?: string;
+      /** URL da aprire nella WebView. */
+      src: string;
+      /** Altezza della WebView in px (default 400). */
+      height?: number;
+      style?: UiStyleProps;
       layout?: UiLayoutProps;
     };
+
+/** Oggetto della scena di gioco. I campi vx/vy/gravity abilitano fisica automatica nel renderer. */
+export type SceneObject = {
+  type: 'rect' | 'circle' | 'text';
+  id?: string;
+  x: number;
+  y: number;
+  /** Velocità orizzontale (px/tick). */
+  vx?: number;
+  /** Velocità verticale (px/tick). */
+  vy?: number;
+  /** Override locale della gravità per questo oggetto. */
+  gravity?: number;
+  w?: number;
+  h?: number;
+  r?: number;
+  color?: string;
+  radius?: number;
+  text?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  align?: 'left' | 'center' | 'right';
+};

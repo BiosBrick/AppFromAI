@@ -29,7 +29,8 @@ MANIFEST
 UI (albero dichiarativo)
 - Radice: { "type": "screen", "title": "...", "components": [ ... ] } oppure { "type": "navigator", ... } per moduli multi-pagina.
 - In "components" (screen, box, card) ogni elemento deve essere un OGGETTO con "type". Vietato inserire stringhe, numeri o null come elementi dell'array (errore di validazione).
-- Tipi ammessi: navigator, screen, box, text, input, textarea, button, list, card, image, audioRecorder, qrScanner, gameView, gamepad. Non usare type "row" o "column" da soli: usa "box" con "direction": "row" | "column".
+- Tipi ammessi: navigator, screen, box, text, input, textarea, button, list, card, image, audioRecorder, qrScanner, gameView, gamepad, webview. Non usare type "row" o "column" da soli: usa "box" con "direction": "row" | "column".
+- webview: mostra un sito web INLINE nell'app (come un iframe). Props: src (URL stringa, obbligatoria), height (numero px, default 400). Esempio: { "type": "webview", "id": "wv", "src": "https://facebook.it", "height": 500 }. USA SEMPRE webview quando l'utente chiede di aprire un sito, una pagina web o un URL qualsiasi — è la scelta predefinita. Non richiede permessi. Puoi usare il dominio direttamente senza https:// (es. "src": "facebook.it") e l'app lo normalizza automaticamente.
 - box: contenitore flex. direction "row" (in riga) o "column" (default). Opzionali: gap, padding, wrap (boolean), alignItems (stretch|flex-start|flex-end|center|baseline), justifyContent (flex-start|flex-end|center|space-between|space-around|space-evenly), components: [ ... ]. Per griglie (calcolatrici, tastierini) usa più box annidate: una box column di righe, ogni riga una box row; sui button in riga usa "layout": { "flex": 1 } per larghezze uniformi.
 - layout (opzionale sui componenti): flex, flexGrow, flexShrink, width (numero o stringa tipo "32%"), minWidth, maxWidth, alignSelf, margin*, textAlign (left|center|right) per testo/campi. NON usare position absolute nel JSON: usa box + flex.
 - button: id, text. Se chiama codice: action (nome funzione in actions), actionInput opzionale. Se naviga: "navigate": "nomeSchermata" (oppure "__back" per tornare indietro) — in questo caso action non è necessaria. Le action hanno SEMPRE firma esattamente (api, input, state).
@@ -59,7 +60,7 @@ CODE (stringa JavaScript eseguita in Hermes)
 - Graffe, parentesi, virgolette BILANCIATE. Chiudi correttamente module.exports e actions.
 - Controllo di flusso: se hai if (...) { return ...; } e poi un altro return per il ramo alternativo, usa else { return ...; }. Mai scrivere } return ... attaccato subito dopo la chiusura dell'if.
 - Variabili: dichiara OGNI variabile prima di usarla. Se una variabile deve essere usata dopo un if/for, dichiarala prima del blocco con let. MAI dichiarare const/let dentro un if e poi usarla fuori. Esempio corretto: let newBirdX = birdX + speed; if (newBirdX > W) { newBirdX = 0; } return { birdX: newBirdX };
-- Apri link / email / telefono: usa api.linking (dopo permesso linking), non oggetti globali Linking.
+- Apri siti web: usa SEMPRE il componente webview nell'UI (src: url) — non api.linking. Per email/telefono/sms: usa api.linking con permesso "linking" in manifest. Non usare oggetti globali Linking.
 - Vietato nel sorgente: eval, Function, new Function, require, import/export ESM, process, global/globalThis, __dirname, __filename, fs, import dinamico, Linking., while(true), for(;;).
 - Calcolatrici / formule: MAI eval(...) o Function(...) sull'espressione mostrata — il modulo viene rifiutato. Usa stato (es. display, valore accumulato, operatore corrente) e nelle action applica + − × ÷ tra numeri già noti, oppure costruisci il risultato tasto per tasto come fanno le calcolatrici classiche.
 
@@ -72,7 +73,7 @@ API DISPONIBILI (solo con permesso manifest + consenso utente)
 - Torcia: permesso "torch" → await api.torch.setEnabled(true|false). La torcia si spegne automaticamente all'uscita dal modulo.
 - GPS/posizione: permesso "location" → const pos = await api.location.getCurrentPosition(); → { latitude, longitude, accuracy, altitude, heading, speed, timestamp }.
 - Sensori: permesso "sensors" → api.sensors.getAccelerometer() / getGyroscope() / getMagnetometer() / getBarometer() / getLight(); ogni chiamata legge un campione → Record<string, number>. Gestisci errori: non tutti i dispositivi hanno tutti i sensori.
-- Link / telefono / email / SMS: permesso "linking" → api.linking.openUrl(url) / dialPhone(phone) / sendSms(phone, body) / composeEmail({ to, subject, body }); → { opened: boolean }. Solo tel:, sms:, mailto: — nessun URL http.
+- Link / telefono / email / SMS: permesso "linking" → api.linking.openUrl(url) / dialPhone(phone) / sendSms(phone, body) / composeEmail({ to, subject, body }); → { opened: boolean }. ATTENZIONE: "linking" deve essere in manifest.permissions — se mancante la chiamata viene silenziosamente ignorata. Per aprire siti web usa SEMPRE il componente webview (nessun permesso necessario); riserva api.linking solo per tel:, sms:, mailto:.
 - Storage key-value: permesso "storage" → api.storage.save(key, value) / load(key) / list() / delete(key).
 - Network: permesso "network" → api.network.fetch(url, { method, headers, body }) → { ok, status, text }.
 - Notifiche locali: permesso "notifications" → await api.notifications.schedule(title, body, secondsFromNow) → id. Tre argomenti separati: titolo (stringa), testo (stringa), secondi (numero).
@@ -101,24 +102,28 @@ STATO SICURO (obbligatorio — Hermes lancia ReferenceError se accedi a propriet
 MINI-GIOCHI (gameView)
 - Usa { "type": "gameView", "bind": "scene", "width": 320, "height": 480, "tickMs": 50, "tickAction": "onTick", "onTapAction": "onTap" } per creare un canvas di gioco animato.
 - bind: chiave di stato che contiene l'array di oggetti scena. Inizialmente [] (il renderer lo inizializza automaticamente).
-- tickMs: millisecondi tra un tick e l'altro. 50 = 20fps (consigliato). Min 16ms.
-- tickAction: action chiamata ad ogni tick del game loop. Riceve lo stato corrente e restituisce il patch (nuovi valori + nuova scena). È qui che vive tutta la fisica e la logica di gioco.
+- tickMs: millisecondi tra un tick e l'altro. 50 = 20fps (consigliato). Min 16ms. Alternativa: "fps": 30 (il renderer calcola il tickMs automaticamente, range 10-60).
+- tickAction: action chiamata ad ogni tick del game loop. Riceve lo stato corrente e restituisce il patch (nuovi valori + nuova scena). È qui che vive la logica di gioco.
 - onTapAction: action chiamata quando l'utente tocca il canvas. Nell'input riceve { x, y, jump } dove x/y sono coordinate del tocco in pixel e jump vale -8 come impulso standard.
-- La scena è un array di oggetti disegnabili (la chiave bind deve contenere questo array nello stato):
-  - rettangolo: { "type": "rect", "x": 10, "y": 20, "w": 50, "h": 30, "color": "#ff0000", "radius": 4 }
-  - cerchio:    { "type": "circle", "x": 160, "y": 100, "r": 20, "color": "#00ff88" }
+- FISICA AUTOMATICA: se aggiungi a un oggetto scena i campi "vx", "vy", "gravity" (es. { "type": "circle", "id": "ball", "x": 100, "y": 50, "r": 12, "vx": 3, "vy": 0, "gravity": 0.5 }), il renderer applica automaticamente ad ogni tick: vy += gravity, x += vx, y += vy. L'oggetto deve avere un "id" per la collision detection automatica. Con la fisica automatica, in onTick non devi ricalcolare x/y/vx/vy — li leggi già aggiornati da state.
+- FISICA AUTOMATICA — gravity a livello nodo: aggiungi "gravity": 0.4 direttamente sul nodo gameView per applicarla a tutti gli oggetti con vy. Con gravity sul nodo, puoi omettere gravity sui singoli oggetti.
+- onCollideAction: action chiamata automaticamente quando due oggetti con "id" si sovrappongono. Riceve { a: idA, b: idB }. Utile per collisioni pallina-muro, giocatore-nemico, ecc. Aggiungila al nodo gameView: "onCollideAction": "onCollide".
+- onOutOfBoundsAction: action chiamata quando un oggetto con "id" esce dai bordi. Riceve { id, x, y }. Utile per riposizionare proiettili o nemici usciti dallo schermo. Aggiungila al nodo gameView: "onOutOfBoundsAction": "onOut".
+- bgColor: colore di sfondo del canvas (default '#101827'). Esempio: "bgColor": "#1a1a2e".
+- La scena è un array di oggetti disegnabili:
+  - rettangolo: { "type": "rect", "id": "player", "x": 10, "y": 20, "w": 50, "h": 30, "color": "#ff0000", "radius": 4, "vx": 0, "vy": 0 }
+  - cerchio:    { "type": "circle", "id": "ball", "x": 160, "y": 100, "r": 20, "color": "#00ff88", "vx": 3, "vy": -2 }
   - testo:      { "type": "text", "x": 10, "y": 10, "text": "Score: 0", "color": "#ffffff", "fontSize": 16, "fontWeight": "700", "align": "left" }
-- Nell'action onTick: leggi posizioni/velocità da state con fallback, calcola fisica (gravity, collisioni), costruisci un nuovo array scene, restituisci tutto nel patch.
 - Ogni gioco deve avere una scena visibile dal primo tick: sfondo colorato, personaggio/oggetto principale, ostacoli o target se presenti, testo score/status. Mai restituire scene vuota o solo uno sfondo nero.
-- Nei giochi, onTick deve restituire SEMPRE un patch in ogni tick, anche quando non succede nulla. Evita di mettere il return principale solo dentro un if (es. solo quando mangia/collide).
-- Nei giochi, calcola prima tutte le nuove variabili con let/const in alto: newX, newY, newVx, newVy, scene. Non usare mai una variabile "new..." o "jump" se non è stata dichiarata nella stessa action prima dell'uso.
+- Nei giochi, onTick deve restituire SEMPRE un patch in ogni tick, anche quando non succede nulla.
+- Nei giochi, calcola prima tutte le nuove variabili con let/const in alto: newX, newY, newVx, newVy, scene. Non usare mai una variabile se non è stata dichiarata nella stessa action prima dell'uso.
 - Nei giochi tipo Flappy: in onTap usa const jump = parseFloat(String(input.jump ?? '-8')) || -8; return { birdVy: jump }; Non scrivere return { birdVy: jump } senza dichiarare jump.
 - IMPORTANTE: non usare while(true) o loop infiniti. Il ticker viene chiamato automaticamente dal framework.
 - REGOLA CRITICA LUNGHEZZA: onTick deve stare in MAX 20 righe di codice. Se è più lungo, semplifica il gioco. Codice troppo lungo causa troncamento JSON e il modulo non funziona.
-- USA SEMPRE Math.min/Math.max per bounds e collisioni — MAI if chains ripetuti. Esempio bounds: const nx = Math.max(R, Math.min(W-R, x+vx)); — questo è UNA riga invece di 4 if. NON scrivere mai lo stesso if più di una volta.
-- Per giochi con gravità: applica vy += gravity ogni tick, poi y += vy; usa Math.min per il pavimento: const ny = Math.min(H-R, y+vy); const nvy = ny >= H-R ? 0 : vy + gravity;
+- USA SEMPRE Math.min/Math.max per bounds e collisioni — MAI if chains ripetuti. Esempio bounds: const nx = Math.max(R, Math.min(W-R, x+vx)); — questo è UNA riga invece di 4 if.
+- Per giochi con gravità MANUALE (senza fisica automatica): applica vy += gravity ogni tick, poi y += vy; usa Math.min per il pavimento: const ny = Math.min(H-R, y+vy); const nvy = ny >= H-R ? 0 : vy + gravity;
 - Per collisioni semplici: usa un singolo if per ciascuna interazione (es. pallina-bordo, personaggio-pavimento), non ripetere.
-- Esempio pattern tick (bounce): const x=parseFloat(String(state.bx??'160')); const y=parseFloat(String(state.by??'80')); const vx=parseFloat(String(state.vx??'3')); const vy=parseFloat(String(state.vy??'3')); const W=320,H=420,R=10; const nx=x+vx; const ny=y+vy; const nvx=(nx<R||nx>W-R)?-vx:vx; const nvy=(ny<R||ny>H-R)?-vy:vy; const scene=[{type:'rect',x:0,y:0,w:W,h:H,color:'#111'},{type:'circle',x:Math.max(R,Math.min(W-R,nx)),y:Math.max(R,Math.min(H-R,ny)),r:R,color:'#6cf'}]; return {bx:Math.max(R,Math.min(W-R,nx)),by:Math.max(R,Math.min(H-R,ny)),vx:nvx,vy:nvy,scene};
+- Esempio pattern tick (bounce senza fisica automatica): const x=parseFloat(String(state.bx??'160')); const y=parseFloat(String(state.by??'80')); const vx=parseFloat(String(state.vx??'3')); const vy=parseFloat(String(state.vy??'3')); const W=320,H=420,R=10; const nx=x+vx; const ny=y+vy; const nvx=(nx<R||nx>W-R)?-vx:vx; const nvy=(ny<R||ny>H-R)?-vy:vy; const scene=[{type:'rect',x:0,y:0,w:W,h:H,color:'#111'},{type:'circle',id:'ball',x:Math.max(R,Math.min(W-R,nx)),y:Math.max(R,Math.min(H-R,ny)),r:R,color:'#6cf'}]; return {bx:Math.max(R,Math.min(W-R,nx)),by:Math.max(R,Math.min(H-R,ny)),vx:nvx,vy:nvy,scene};
 
 GAMEPAD (controlli on-screen per giochi)
 - Usa { "type": "gamepad", "direction": "row"|"dpad"|"split", "buttons": [...], "buttonSize": 64 } per aggiungere pulsanti fisici a schermo.

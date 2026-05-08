@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getJsonResponseRetryHint } from '../ai/modulePrompt';
 import type { MotherApi } from '../capabilities/types';
 import type { NavigatorScreen, UiNode } from '../types/uiNodes';
 import { reportGenAppError } from '../debug/genAppDebug';
@@ -24,6 +23,8 @@ function collectButtonActions(node: UiNode): string[] {
     const acts: string[] = [];
     if (node.tickAction) acts.push(node.tickAction);
     if (node.onTapAction) acts.push(node.onTapAction);
+    if (node.onCollideAction) acts.push(node.onCollideAction);
+    if (node.onOutOfBoundsAction) acts.push(node.onOutOfBoundsAction);
     return acts;
   }
   if ('components' in node && Array.isArray(node.components)) {
@@ -112,19 +113,10 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
   const canGoBack = screenStack.length > 1;
 
   const onNavigate = useCallback((target: string) => {
-    console.log('[Navigator] onNavigate called, target:', target);
     if (target === '__back') {
-      setScreenStack((s) => {
-        const next = s.length > 1 ? s.slice(0, -1) : s;
-        console.log('[Navigator] back, stack:', next);
-        return next;
-      });
+      setScreenStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
     } else {
-      setScreenStack((s) => {
-        const next = [...s, target];
-        console.log('[Navigator] push, stack:', next);
-        return next;
-      });
+      setScreenStack((s) => [...s, target]);
     }
   }, []);
 
@@ -132,10 +124,6 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
     (patch: Record<string, unknown>) => {
       const { __navigate, ...rest } = patch as Record<string, unknown> & { __navigate?: unknown };
       if (typeof __navigate === 'string') {
-        console.log('[patchState] __navigate:', __navigate, '| isNavigator:', isNavigator);
-        if (!isNavigator) {
-          console.warn('[patchState] __navigate ignorato: il root UI è "screen", non "navigator". Genera il modulo con type:"navigator" e le schermate in "screens".');
-        }
         onNavigate(__navigate);
       }
       if (Object.keys(rest).length > 0) {
@@ -158,7 +146,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
         const delta = await runAction(actions, actionName, motherApi, input, stateRef.current);
         if (delta && typeof delta === 'object') patchState(delta as Record<string, unknown>);
       } catch (e) {
-        setError((e as Error).message ?? 'Errore sconosciuto');
+        setError('Azione non riuscita, riprova.');
         reportGenAppError('DynamicRenderer.action', e, { action: actionName });
       } finally {
         setBusyAction(null);
@@ -186,7 +174,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
       })
       .catch((e) => {
         if (cancelled) return;
-        setError((e as Error).message ?? 'Errore onFocus');
+        setError('Errore durante il caricamento della schermata.');
         reportGenAppError('DynamicRenderer.onFocus', e, { action: actionName, screen: currentScreenKey });
       })
       .finally(() => {
@@ -201,7 +189,6 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
     return (
       <View style={styles.errBox}>
         <Text style={styles.errTitle}>{t.rendererError}</Text>
-        <Text style={styles.errHint}>{getJsonResponseRetryHint()}</Text>
         <Text style={styles.errText}>{compileError}</Text>
       </View>
     );
@@ -253,7 +240,6 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
         {nodeToRender ? renderNode(nodeToRender, ctx, isNavigator ? currentScreenKey : 'root') : null}
         {error ? (
           <View style={styles.errBox}>
-            <Text style={styles.errHint}>{getJsonResponseRetryHint()}</Text>
             <Text style={styles.errText}>{error}</Text>
           </View>
         ) : null}
