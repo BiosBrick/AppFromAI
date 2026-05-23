@@ -8,13 +8,14 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { deleteModule, listModules } from '../../src/modules/moduleStore';
+import { deleteModule, listModules, renameModule } from '../../src/modules/moduleStore';
 import type { StoredModule } from '../../src/types/generatedModule';
 import { useI18n } from '../../src/i18n/useI18n';
 
@@ -88,6 +89,14 @@ export default function ModulesScreen() {
     [load, t]
   );
 
+  const onRename = useCallback(
+    async (item: StoredModule, newName: string) => {
+      await renameModule(item.id, newName);
+      await load();
+    },
+    [load]
+  );
+
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
@@ -127,6 +136,7 @@ export default function ModulesScreen() {
               key={item.id}
               item={item}
               onDelete={onDelete}
+              onRename={onRename}
               onOpen={(id) => router.push(`/module/${id}`)}
               onShare={async (mod) => {
                 const text = mod.prompt
@@ -145,21 +155,37 @@ export default function ModulesScreen() {
 function ModuleCard({
   item,
   onDelete,
+  onRename,
   onOpen,
   onShare,
 }: {
   item: StoredModule;
   onDelete: (item: StoredModule) => void;
+  onRename: (item: StoredModule, newName: string) => void;
   onOpen: (id: string) => void;
   onShare: (item: StoredModule) => void;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(item.name);
 
   const onCopyId = async () => {
     await Clipboard.setStringAsync(item.id);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const confirmRename = () => {
+    if (editName.trim() && editName.trim() !== item.name) {
+      onRename(item, editName.trim());
+    }
+    setEditing(false);
+  };
+
+  const cancelRename = () => {
+    setEditName(item.name);
+    setEditing(false);
   };
 
   const dateStr = new Date(item.createdAt).toLocaleDateString(t.dateLocale, {
@@ -175,21 +201,52 @@ function ModuleCard({
       style={({ pressed }) => [s.card, pressed && s.cardPressed]}
       onPress={() => onOpen(item.id)}
     >
-      {/* Top row: title + delete */}
+      {/* Top row: title + edit + delete */}
       <View style={s.cardTop}>
         <View style={s.cardTitleRow}>
-          <Text style={s.cardTitle} numberOfLines={1}>{item.name}</Text>
-          <View style={s.vBadge}>
-            <Text style={s.vBadgeText}>v{item.version}</Text>
-          </View>
+          {editing ? (
+            <>
+              <TextInput
+                style={s.titleInput}
+                value={editName}
+                onChangeText={setEditName}
+                autoFocus
+                onSubmitEditing={confirmRename}
+                returnKeyType="done"
+                maxLength={60}
+              />
+              <Pressable style={s.iconBtn} onPress={confirmRename} hitSlop={10}>
+                <Ionicons name="checkmark" size={16} color="#34d399" />
+              </Pressable>
+              <Pressable style={s.iconBtn} onPress={cancelRename} hitSlop={10}>
+                <Ionicons name="close" size={16} color={C.muted} />
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={s.cardTitle} numberOfLines={1}>{item.name}</Text>
+              <View style={s.vBadge}>
+                <Text style={s.vBadgeText}>v{item.version}</Text>
+              </View>
+              <Pressable
+                style={s.iconBtn}
+                onPress={() => { setEditName(item.name); setEditing(true); }}
+                hitSlop={10}
+              >
+                <Ionicons name="pencil-outline" size={15} color={C.muted} />
+              </Pressable>
+            </>
+          )}
         </View>
-        <Pressable
-          style={s.deleteBtn}
-          onPress={() => onDelete(item)}
-          hitSlop={10}
-        >
-          <Ionicons name="trash-outline" size={16} color={C.error} />
-        </Pressable>
+        {!editing && (
+          <Pressable
+            style={s.deleteBtn}
+            onPress={() => onDelete(item)}
+            hitSlop={10}
+          >
+            <Ionicons name="trash-outline" size={16} color={C.error} />
+          </Pressable>
+        )}
       </View>
 
       {/* Date */}
@@ -287,6 +344,27 @@ const s = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   cardTitle: { color: C.text, fontSize: 17, fontWeight: '700', flexShrink: 1 },
+  titleInput: {
+    flex: 1,
+    color: C.text,
+    fontSize: 17,
+    fontWeight: '700',
+    borderBottomWidth: 1.5,
+    borderBottomColor: C.primary,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    minWidth: 80,
+  },
+  iconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    backgroundColor: C.surfaceHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+  },
   vBadge: {
     backgroundColor: '#1e1b4b',
     borderRadius: 6,

@@ -29,7 +29,7 @@ MANIFEST
 UI (albero dichiarativo)
 - Radice: { "type": "screen", "title": "...", "components": [ ... ] } oppure { "type": "navigator", ... } per moduli multi-pagina.
 - In "components" (screen, box, card) ogni elemento deve essere un OGGETTO con "type". Vietato inserire stringhe, numeri o null come elementi dell'array (errore di validazione).
-- Tipi ammessi: navigator, screen, box, text, input, textarea, button, list, card, image, audioRecorder, qrScanner, gameView, gamepad. Non usare type "row" o "column" da soli: usa "box" con "direction": "row" | "column".
+- Tipi ammessi: navigator, screen, box, text, input, textarea, button, list, card, image, audioRecorder, qrScanner, webGame, gamepad. Non usare type "row" o "column" da soli: usa "box" con "direction": "row" | "column".
 - box: contenitore flex. direction "row" (in riga) o "column" (default). Opzionali: gap, padding, wrap (boolean), alignItems (stretch|flex-start|flex-end|center|baseline), justifyContent (flex-start|flex-end|center|space-between|space-around|space-evenly), components: [ ... ]. Per griglie (calcolatrici, tastierini) usa più box annidate: una box column di righe, ogni riga una box row; sui button in riga usa "layout": { "flex": 1 } per larghezze uniformi.
 - layout (opzionale sui componenti): flex, flexGrow, flexShrink, width (numero o stringa tipo "32%"), minWidth, maxWidth, alignSelf, margin*, textAlign (left|center|right) per testo/campi. NON usare position absolute nel JSON: usa box + flex.
 - button: id, text. Se chiama codice: action (nome funzione in actions), actionInput opzionale. Se naviga: "navigate": "nomeSchermata" (oppure "__back" per tornare indietro) — in questo caso action non è necessaria. Le action hanno SEMPRE firma esattamente (api, input, state).
@@ -98,42 +98,114 @@ STATO SICURO (obbligatorio — Hermes lancia ReferenceError se accedi a propriet
 - Stato interno (calcolatrici, wizard, multi-step): tutti i valori intermedi devono avere fallback in ogni action che li legge.
 - Esempio corretto per calcolatrice: const display = String(state.display ?? '0'); const op = String(state.op ?? ''); const prev = parseFloat(String(state.prev ?? '0')) || 0;
 
-MINI-GIOCHI (gameView)
-- Usa { "type": "gameView", "bind": "scene", "width": 320, "height": 480, "tickMs": 50, "tickAction": "onTick", "onTapAction": "onTap" } per creare un canvas di gioco animato.
-- bind: chiave di stato che contiene l'array di oggetti scena. Inizialmente [] (il renderer lo inizializza automaticamente).
-- tickMs: millisecondi tra un tick e l'altro. 50 = 20fps (consigliato). Min 16ms.
-- tickAction: action chiamata ad ogni tick del game loop. Riceve lo stato corrente e restituisce il patch (nuovi valori + nuova scena). È qui che vive tutta la fisica e la logica di gioco.
-- onTapAction: action chiamata quando l'utente tocca il canvas. Nell'input riceve { x, y, jump } dove x/y sono coordinate del tocco in pixel e jump vale -8 come impulso standard.
-- La scena è un array di oggetti disegnabili (la chiave bind deve contenere questo array nello stato):
-  - rettangolo: { "type": "rect", "x": 10, "y": 20, "w": 50, "h": 30, "color": "#ff0000", "radius": 4 }
-  - cerchio:    { "type": "circle", "x": 160, "y": 100, "r": 20, "color": "#00ff88" }
-  - testo:      { "type": "text", "x": 10, "y": 10, "text": "Score: 0", "color": "#ffffff", "fontSize": 16, "fontWeight": "700", "align": "left" }
-- Nell'action onTick: leggi posizioni/velocità da state con fallback, calcola fisica (gravity, collisioni), costruisci un nuovo array scene, restituisci tutto nel patch.
-- Ogni gioco deve avere una scena visibile dal primo tick: sfondo colorato, personaggio/oggetto principale, ostacoli o target se presenti, testo score/status. Mai restituire scene vuota o solo uno sfondo nero.
-- Nei giochi, onTick deve restituire SEMPRE un patch in ogni tick, anche quando non succede nulla. Evita di mettere il return principale solo dentro un if (es. solo quando mangia/collide).
-- Nei giochi, calcola prima tutte le nuove variabili con let/const in alto: newX, newY, newVx, newVy, scene. Non usare mai una variabile "new..." o "jump" se non è stata dichiarata nella stessa action prima dell'uso.
-- Nei giochi tipo Flappy: in onTap usa const jump = parseFloat(String(input.jump ?? '-8')) || -8; return { birdVy: jump }; Non scrivere return { birdVy: jump } senza dichiarare jump.
-- IMPORTANTE: non usare while(true) o loop infiniti. Il ticker viene chiamato automaticamente dal framework.
-- REGOLA CRITICA LUNGHEZZA: onTick deve stare in MAX 20 righe di codice. Se è più lungo, semplifica il gioco. Codice troppo lungo causa troncamento JSON e il modulo non funziona.
-- USA SEMPRE Math.min/Math.max per bounds e collisioni — MAI if chains ripetuti. Esempio bounds: const nx = Math.max(R, Math.min(W-R, x+vx)); — questo è UNA riga invece di 4 if. NON scrivere mai lo stesso if più di una volta.
-- Per giochi con gravità: applica vy += gravity ogni tick, poi y += vy; usa Math.min per il pavimento: const ny = Math.min(H-R, y+vy); const nvy = ny >= H-R ? 0 : vy + gravity;
-- Per collisioni semplici: usa un singolo if per ciascuna interazione (es. pallina-bordo, personaggio-pavimento), non ripetere.
-- Esempio pattern tick (bounce): const x=parseFloat(String(state.bx??'160')); const y=parseFloat(String(state.by??'80')); const vx=parseFloat(String(state.vx??'3')); const vy=parseFloat(String(state.vy??'3')); const W=320,H=420,R=10; const nx=x+vx; const ny=y+vy; const nvx=(nx<R||nx>W-R)?-vx:vx; const nvy=(ny<R||ny>H-R)?-vy:vy; const scene=[{type:'rect',x:0,y:0,w:W,h:H,color:'#111'},{type:'circle',x:Math.max(R,Math.min(W-R,nx)),y:Math.max(R,Math.min(H-R,ny)),r:R,color:'#6cf'}]; return {bx:Math.max(R,Math.min(W-R,nx)),by:Math.max(R,Math.min(H-R,ny)),vx:nvx,vy:nvy,scene};
+MOTORE GIOCHI — WebView Canvas 2D (60fps nativi, nessun overhead)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGOLA FONDAMENTALE: per OGNI gioco usa SEMPRE { "type": "webGame" } nell'UI.
+Il codice gira nel WebView con canvas 2D e requestAnimationFrame — vero 60fps.
+NON usare gameView/tickAction/bind per i giochi. Usa webGame.
 
-GAMEPAD (controlli on-screen per giochi)
-- Usa { "type": "gamepad", "direction": "row"|"dpad"|"split", "buttons": [...], "buttonSize": 64 } per aggiungere pulsanti fisici a schermo.
-- direction: "row" = tutti in riga orizzontale (default). "dpad" = croce direzionale (primo bottone = su, secondo = sinistra, terzo = destra, quarto = giù; extra a destra). "split" = metà sinistra / metà destra dello schermo (utile per 2 pollici).
-- buttons: array di { "id": "btn-left", "label": "◀", "action": "moveLeft", "hold": true, "holdMs": 80 }.
-  - hold: true = l'action si ripete automaticamente finché il tasto è premuto. Utile per movimenti continui.
-  - holdMs: millisecondi tra una ripetizione e l'altra (default 80ms). Min 16ms.
-  - label: emoji o testo corto. Usa ◀ ▶ ▲ ▼ o A B.
-  - action: nome dell'action da chiamare — deve esistere nel codice.
-- buttonSize: dimensione quadrata in pixel dei bottoni (default 64). Usa 72-80 per touchscreen.
-- Il gamepad non ha bind di stato, restituisce solo eventi tramite action.
-- Metti il gamepad DOPO il gameView nella lista components della schermata.
-- Esempio gamepad row con hold: { "type": "gamepad", "direction": "row", "buttonSize": 72, "buttons": [{ "id": "btn-l", "label": "◀", "action": "moveLeft", "hold": true, "holdMs": 80 }, { "id": "btn-r", "label": "▶", "action": "moveRight", "hold": true, "holdMs": 80 }, { "id": "btn-jump", "label": "▲", "action": "jump" }] }
-- Esempio dpad (4 direzioni): { "type": "gamepad", "direction": "dpad", "buttonSize": 64, "buttons": [{ "id": "up", "label": "▲", "action": "moveUp", "hold": true }, { "id": "left", "label": "◀", "action": "moveLeft", "hold": true }, { "id": "right", "label": "▶", "action": "moveRight", "hold": true }, { "id": "down", "label": "▼", "action": "moveDown", "hold": true }] }
+STRUTTURA UI (fissa per tutti i giochi):
+{
+  "type": "screen", "title": "Nome Gioco", "gap": 0,
+  "theme": { "bg": "#000" },
+  "components": [
+    { "type": "webGame", "id": "game", "width": 360, "height": 600 }
+  ]
+}
+NON aggiungere altri componenti React Native (button, text, gamepad) se non strettamente necessario per UI fuori dal canvas.
 
+STRUTTURA CODE (JavaScript browser standard — NON module.exports):
+Il code è JavaScript puro che gira nel WebView. Variabili globali GIÀ disponibili (non ridichiararle):
+- canvas, ctx, WIDTH, HEIGHT  — canvas già inizializzato e scalato
+- sendState(patch)            — opzionale: invia dati allo stato React Native (score, ecc.)
+- window.__onBtn(id, pressed) — opzionale: ricevi eventi da gamepad React Native esterno
+
+⚠️  VIETATO ASSOLUTO nel code webGame:
+- NON scrivere: var canvas, var ctx, var WIDTH, var HEIGHT, var sendState, var window
+  (sono già globals — ridichiarle le azzera a undefined)
+- NON scrivere function init() per inizializzare il canvas (non serve, è già pronto)
+- NON chiamare document.getElementById('game') (canvas è già la variabile pronta)
+- NON usare: require, import, module.exports, eval, while(true)
+Il code deve partire direttamente con variabili di stato e loop, senza setup.
+
+REGOLE CODE webGame:
+- Usa requestAnimationFrame per il loop principale
+- INPUT: gestisci TUTTO il touch direttamente sul canvas (più affidabile)
+- Gestisci game over e restart dentro il loop (nessun reload pagina)
+- Disegna i controlli virtuali DENTRO il canvas se servono pulsanti visibili
+
+I 3 PATTERN BASE — INPUT via TOUCH DIRETTO sul canvas (NESSUN bridge esterno):
+
+PATTERN TAP (Flappy Bird, gravity, pallina che salta):
+canvas.addEventListener('touchstart',function(e){e.preventDefault();if(!alive){restart();}else{vy=-9;}},{passive:false});
+var x=80,y=HEIGHT/2,vy=0,pipes=[],score=0,alive=true,dist=0;
+function restart(){y=HEIGHT/2;vy=0;pipes=[];score=0;alive=true;dist=0;}
+function loop(){
+  if(!alive){drawGameOver();requestAnimationFrame(loop);return;}
+  vy+=0.45;y+=vy;dist++;
+  if(dist%90===0)pipes.push({x:WIDTH+10,gap:100+Math.floor(Math.random()*(HEIGHT-240))});
+  pipes.forEach(function(p){p.x-=3;});
+  pipes=pipes.filter(function(p){return p.x>-54;});
+  pipes.forEach(function(p){if(!p.passed&&p.x+54<x){p.passed=true;score++;sendState({score:score});}});
+  var dead=y<14||y>HEIGHT-14||pipes.some(function(p){return x+14>p.x&&x-14<p.x+54&&(y-14<p.gap-65||y+14>p.gap+65);});
+  if(dead)alive=false;
+  ctx.fillStyle='#87CEEB';ctx.fillRect(0,0,WIDTH,HEIGHT);
+  pipes.forEach(function(p){ctx.fillStyle='#22c55e';ctx.fillRect(p.x,0,54,p.gap-65);ctx.fillRect(p.x,p.gap+65,54,HEIGHT);});
+  ctx.beginPath();ctx.arc(x,y,14,0,Math.PI*2);ctx.fillStyle='#facc15';ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 24px sans-serif';ctx.textAlign='center';ctx.fillText(score,WIDTH/2,36);
+  if(!alive)drawGameOver();
+  requestAnimationFrame(loop);
+}
+function drawGameOver(){ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.fillStyle='#f87171';ctx.font='bold 32px sans-serif';ctx.textAlign='center';ctx.fillText('GAME OVER',WIDTH/2,HEIGHT/2-20);ctx.fillStyle='#fff';ctx.font='20px sans-serif';ctx.fillText('Score: '+score,WIDTH/2,HEIGHT/2+16);ctx.fillStyle='#aaa';ctx.font='15px sans-serif';ctx.fillText('Tap to restart',WIDTH/2,HEIGHT/2+48);}
+requestAnimationFrame(loop);
+
+PATTERN VERTICALE (dodge/space shooter — touch SPLIT: metà sx=sinistra, metà dx=destra):
+var touchLeft=false,touchRight=false;
+canvas.addEventListener('touchstart',function(e){e.preventDefault();for(var i=0;i<e.touches.length;i++){if(e.touches[i].clientX<WIDTH/2)touchLeft=true;else touchRight=true;}},{passive:false});
+canvas.addEventListener('touchmove',function(e){e.preventDefault();touchLeft=false;touchRight=false;for(var i=0;i<e.touches.length;i++){if(e.touches[i].clientX<WIDTH/2)touchLeft=true;else touchRight=true;}},{passive:false});
+canvas.addEventListener('touchend',function(e){e.preventDefault();touchLeft=false;touchRight=false;for(var i=0;i<e.touches.length;i++){if(e.touches[i].clientX<WIDTH/2)touchLeft=true;else touchRight=true;}},{passive:false});
+var px=WIDTH/2,py=HEIGHT-80,objects=[],score=0,alive=true,timer=0;
+function loop(){
+  if(!alive){/* disegna game over */requestAnimationFrame(loop);return;}
+  if(touchLeft)px=Math.max(16,px-5);
+  if(touchRight)px=Math.min(WIDTH-16,px+5);
+  timer++;if(timer%40===0)objects.push({x:Math.random()*(WIDTH-40)+20,y:-20,r:14});
+  objects.forEach(function(o){o.y+=3;});
+  objects=objects.filter(function(o){return o.y<HEIGHT+30;});
+  if(objects.some(function(o){return Math.hypot(o.x-px,o.y-py)<30;}))alive=false;
+  if(alive)score++;
+  /* disegna scena */
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+PATTERN ORIZZONTALE (endless runner — tap metà destra = salta; basta un tocco):
+var jumping=false;
+canvas.addEventListener('touchstart',function(e){e.preventDefault();jumping=true;if(!alive)restart();},{passive:false});
+canvas.addEventListener('touchend',function(){jumping=false;});
+var px=60,py=0,pvy=0,onGround=false,obstacles=[],score=0,alive=true,dist=0;
+var GROUND=HEIGHT-90;
+function restart(){py=GROUND;pvy=0;onGround=true;obstacles=[];score=0;alive=true;dist=0;}
+function loop(){
+  if(!alive){/* game over overlay */requestAnimationFrame(loop);return;}
+  if(jumping&&onGround){pvy=-13;onGround=false;}
+  pvy+=0.65;py=Math.min(GROUND,py+pvy);
+  if(py>=GROUND){py=GROUND;pvy=0;onGround=true;}
+  dist++;if(dist%110===0)obstacles.push({x:WIDTH+20,y:GROUND-40,w:28,h:40});
+  obstacles.forEach(function(o){o.x-=5;});
+  obstacles=obstacles.filter(function(o){return o.x>-50;});
+  if(obstacles.some(function(o){return px+24>o.x&&px<o.x+o.w&&py+32>o.y&&py<o.y+o.h;}))alive=false;
+  if(alive)score=Math.floor(dist/10);
+  /* disegna scena */
+  requestAnimationFrame(loop);
+}
+restart();requestAnimationFrame(loop);
+
+GAMEPAD REACT NATIVE (opzionale — solo se l'UI lo richiede esplicitamente):
+Aggiungi { "type": "gamepad", ... } nell'UI e nel code:
+window.__onBtn=function(id,on){keys[id]=on;};  /* riceve eventi dal gamepad */
+Utile per giochi platform complessi che richiedono più tasti simultanei.
+NON usare gamepad per giochi tap o split-screen (usa il touch diretto sopra).
 QUALITÀ (app generale)
 - Interfaccia leggibile: titoli chiari, spaziatura (box gap/padding, screen gap), pochi livelli di annidamento inutili.
 - Nomi id/bind/action descrittivi e univoci (snakeCase o kebab-case coerente).
@@ -184,41 +256,48 @@ ESEMPIO 2 — multi-pagina con navigator + onFocus per ricaricare lista (usa SEM
   "code": "module.exports = { actions: { async caricaLista(api, input, state) { const raw = await api.storage.load('items'); const arr = raw ? JSON.parse(raw) : []; return { items: arr }; }, async salvaItem(api, input, state) { const testo = String(state.testo ?? ''); if (!testo) return { statoSalvataggio: 'Inserisci un testo.' }; const raw = await api.storage.load('items'); const arr = raw ? JSON.parse(raw) : []; arr.push(testo); await api.storage.save('items', JSON.stringify(arr)); return { testo: '', __navigate: '__back' }; } } };"
 }`;
 
-const GAME_EXAMPLE = `ESEMPIO 3 — mini-gioco con gameView (ball bounce):
+const GAME_EXAMPLE = `ESEMPIO 3 — Flappy Bird con webGame (canvas 2D, 60fps nativi):
 {
-  "manifest": { "id": "ball-bounce", "name": "Ball Bounce", "version": "1.0.0", "runtime": "javascript", "permissions": [], "entry": "logic.js", "ui": "ui.json" },
+  "manifest": { "id": "flappy-bird", "name": "Flappy Bird", "version": "1.0.0", "runtime": "javascript", "permissions": [], "entry": "logic.js", "ui": "ui.json" },
   "ui": {
-    "type": "screen", "title": "Ball Bounce", "gap": 12,
+    "type": "screen", "title": "Flappy Bird", "gap": 0,
+    "theme": { "bg": "#000" },
     "components": [
-      { "type": "gameView", "id": "gv", "bind": "scene", "width": 320, "height": 420, "tickMs": 40, "tickAction": "onTick", "onTapAction": "onTap" },
-      { "type": "text", "id": "score", "bind": "scoreText", "style": { "color": "#fff", "fontSize": 18, "fontWeight": "700" }, "layout": { "textAlign": "center" } }
+      { "type": "webGame", "id": "game", "width": 360, "height": 600 }
     ]
   },
-  "code": "module.exports={actions:{async onTick(api,input,state){const W=320,H=420,R=12;const x=parseFloat(String(state.bx??'160'));const y=parseFloat(String(state.by??'80'));const vx=parseFloat(String(state.vx??'4'));const vy=parseFloat(String(state.vy??'3'));const score=parseInt(String(state.score??'0'),10)+1;const nx=x+vx;const ny=y+vy;const nvx=(nx<R||nx>W-R)?-vx:vx;const nvy=(ny<R||ny>H-R)?-vy:vy;const scene=[{type:'rect',x:0,y:0,w:W,h:H,color:'#111122'},{type:'circle',x:Math.max(R,Math.min(W-R,nx)),y:Math.max(R,Math.min(H-R,ny)),r:R,color:'#6366f1'},{type:'text',x:10,y:10,text:'Rimbalzi: '+score,color:'#fff',fontSize:14}];return{bx:Math.max(R,Math.min(W-R,nx)),by:Math.max(R,Math.min(H-R,ny)),vx:nvx,vy:nvy,score,scene};},async onTap(api,input,state){return{vx:-parseFloat(String(state.vx??'4')),vy:-parseFloat(String(state.vy??'3'))};}}};"
+  "code": "var by=HEIGHT/2,bvy=0,pipes=[],score=0,alive=true,dist=0;function restart(){by=HEIGHT/2;bvy=0;pipes=[];score=0;alive=true;dist=0;}canvas.addEventListener('touchstart',function(e){e.preventDefault();if(!alive){restart();}else{bvy=-9;}},{passive:false});var last=0;function loop(ts){var dt=Math.min((ts-last)/1000,0.1);last=ts;if(alive){bvy+=0.45;by+=bvy;dist++;if(dist%90===0){pipes.push({x:WIDTH+10,gapY:100+Math.floor(Math.random()*(HEIGHT-220))});}pipes.forEach(function(p){p.x-=3;});pipes=pipes.filter(function(p){return p.x>-54;});pipes.forEach(function(p){if(!p.passed&&p.x+54<80){p.passed=true;score++;sendState({score:score});}});var dead=by<14||by>HEIGHT-14||pipes.some(function(p){return 80+14>p.x&&80-14<p.x+54&&(by-14<p.gapY-65||by+14>p.gapY+65);});if(dead)alive=false;}ctx.fillStyle='#87CEEB';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.fillStyle='#5DBB3F';ctx.fillRect(0,HEIGHT-40,WIDTH,40);pipes.forEach(function(p){ctx.fillStyle='#22c55e';ctx.fillRect(p.x,0,54,p.gapY-65);ctx.fillRect(p.x,p.gapY+65,54,HEIGHT);ctx.fillStyle='#16a34a';ctx.fillRect(p.x-3,p.gapY-65-20,60,20);ctx.fillRect(p.x-3,p.gapY+65,60,20);});ctx.beginPath();ctx.arc(80,by,14,0,Math.PI*2);ctx.fillStyle='#facc15';ctx.fill();ctx.strokeStyle='#ca8a04';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 28px sans-serif';ctx.textAlign='center';ctx.fillText(score,WIDTH/2,40);if(!alive){ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.fillStyle='#f87171';ctx.font='bold 32px sans-serif';ctx.textAlign='center';ctx.fillText('GAME OVER',WIDTH/2,HEIGHT/2-30);ctx.fillStyle='#fff';ctx.font='bold 20px sans-serif';ctx.fillText('Score: '+score,WIDTH/2,HEIGHT/2+10);ctx.fillStyle='#aaa';ctx.font='15px sans-serif';ctx.fillText('Tap to restart',WIDTH/2,HEIGHT/2+45);}requestAnimationFrame(loop);}requestAnimationFrame(loop);"
 }`;
 
 /** Blocco da mostrare sopra agli errori di generazione/validazione/compilazione (stesso "contratto" del modello). */
 export function getJsonResponseRetryHint(): string {
   return `Rigenera un UNICO JSON valido (solo chiavi manifest, ui, code — niente markdown né testo extra).
-• gameView: { "type": "gameView", "bind": "scene", "width": 320, "height": 420, "tickMs": 40, "tickAction": "onTick", "onTapAction": "onTap" }. onTick riceve state, calcola fisica, ritorna patch con nuova "scene" (array di rect/circle/text). La scena deve essere visibile dal primo tick: sfondo colorato + giocatore + score, mai solo nero. onTap riceve { x, y, jump }. Niente while/for infiniti: il ticker è automatico.
-• gamepad: { "type": "gamepad", "direction": "row"|"dpad"|"split", "buttonSize": 72, "buttons": [{ "id": "btn-l", "label": "◀", "action": "moveLeft", "hold": true, "holdMs": 80 }, ...] }. Mettilo dopo gameView. hold: true = ripete l'action finché il tasto è tenuto premuto. Ogni action del gamepad deve esistere nel codice.
-• ui: radice "screen" per moduli a pagina singola, "navigator" per moduli multi-pagina (navigator obbligatorio se hai più schermate — vedi ESEMPIO 2). In components solo oggetti { "type": ... }, mai stringhe nell'array; box row/column + layout; button con actionInput se servono dati, non input (no quarto parametro nelle action).
-• navigator: { "type": "navigator", "initialScreen": "home", "screens": { "home": { "type": "screen", "onFocus": "caricaLista", ... }, "altra": { ... } } }. I pulsanti navigano con "navigate": "nomeSchermata" senza action. Il tasto Indietro è automatico. Usa "onFocus": "nomeAction" su ogni schermata che deve ricaricare dati da storage al ritorno: l'action viene chiamata automaticamente ad ogni attivazione della schermata.
-• code: stringa JS module.exports = { actions: { async nome(api, input, state) { … } } }; niente TypeScript; niente eval/Function per calcoli; virgolette nel code escape come \\" nel JSON; graffe bilanciate; dopo if { return … } usa else { return … } se serve un secondo return.
-• più action: devono essere sorelle dentro actions e separate da virgola — async onTick(...) { ... }, async onTap(...) { ... }. Mai inserire onTap dentro onTick, dentro if, o dopo una graffa mancante.
-• stato sicuro: ogni lettura da state con fallback — const x = parseFloat(String(state.x ?? '0')) || 0; const s = String(state.s ?? ''); mai chiamare metodi su valori letti da state senza prima assegnarli con fallback.
-• variabili sicure: dichiara ogni variabile prima dell'uso. Se serve fuori da un if, dichiarala prima con let. Mai usare jump/newX/newY/newBirdX/newPipeX senza const/let precedente nella stessa action. In onTap: const jump = parseFloat(String(input.jump ?? '-8')) || -8; return { birdVy: jump };
-• audioPlayer: await api.audioPlayer.play(uri) per riprodurre; await api.audioPlayer.stop() per fermare. Stesso permesso "audioRecorder".
-• notifications: tre argomenti separati — api.notifications.schedule(titolo, testo, secondi).
-• manifest.permissions solo per API effettivamente usate: camera, audioRecorder, qrScanner, torch, location, sensors, linking, storage, network, notifications.
-• clipboard / haptics / share / tts NON vanno in permissions — usale liberamente.
-• api.files.save(key, uri) rende permanente un URI (audio/foto); api.tts.speak(testo, {language:'it-IT'}); api.haptics.impact('medium'); api.share.file(uri).`;
+GIOCHI: usa SEMPRE { "type":"webGame","width":360,"height":600 } nell'UI. Il code è JavaScript browser (canvas 2D + requestAnimationFrame), NON module.exports.
+  Globals già pronti (NON ridichiarare): canvas, ctx, WIDTH, HEIGHT, sendState.
+  VIETATO: var canvas, var ctx, var WIDTH, var HEIGHT, var window, function init(){canvas=document...}.
+  Touch: canvas.addEventListener('touchstart',fn,{passive:false}), e.preventDefault() dentro.
+  Split-screen: touchLeft=(e.touches[0].clientX<WIDTH/2).
+  Loop: function loop(){...draw...requestAnimationFrame(loop);} requestAnimationFrame(loop);
+  NO: require, import, module.exports, eval, while(true).
+• navigator: { "type":"navigator","initialScreen":"home","screens":{"home":{"type":"screen","onFocus":"loadData",...}} }
+• app normale: code=module.exports={actions:{async nome(api,input,state){return patch;}}}; NO TypeScript; NO eval; virgolette escape \\"; graffe bilanciate.
+• notifications: api.notifications.schedule(titolo, testo, secondiDaOra) — 3 argomenti separati.`;
 }
 
-export function buildModuleGenerationPrompt(userPrompt: string): string {
-  const trimmed = userPrompt.trim();
-  return `Sei il generatore di moduli per AppFromAI. Obiettivo: modulo completo, valido e pronto all'uso su dispositivo mobile.
+const LANGUAGE_DIRECTIVES: Record<string, string> = {
+  en: 'IMPORTANT: Generate ALL UI text in English: button labels, screen titles, placeholders, status messages, emptyText, error messages. Do not use Italian words in the UI.',
+  es: 'IMPORTANTE: Genera TODOS los textos de la UI en español: etiquetas de botones, títulos, placeholders, mensajes de estado, emptyText.',
+  fr: 'IMPORTANT: Génère TOUS les textes de l\'UI en français: labels des boutons, titres, placeholders, messages de statut, emptyText.',
+  de: 'WICHTIG: Generiere ALLE UI-Texte auf Deutsch: Button-Labels, Titel, Platzhalter, Statusmeldungen, emptyText.',
+};
 
+export function buildModuleGenerationPrompt(userPrompt: string, language?: string): string {
+  const trimmed = userPrompt.trim();
+  const lang = language?.toLowerCase().slice(0, 2) || 'it';
+  const langDirective = LANGUAGE_DIRECTIVES[lang] ?? '';
+
+  return `Sei il generatore di moduli per AppFromAI. Obiettivo: modulo completo, valido e pronto all'uso su dispositivo mobile.
+${langDirective ? `\n${langDirective}\n` : ''}
 === FORMATO DI RISPOSTA (leggi tutto questo blocco prima della richiesta utente; l'output deve rispettarlo al 100%) ===
 
 ${JSON_RESPONSE_RULES_IT}
