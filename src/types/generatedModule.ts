@@ -234,6 +234,7 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
         width: z.number().optional(),
         height: z.number().optional(),
         tickMs: z.number().optional(),
+        fps: z.number().min(10).max(60).optional(),
         tickAction: z.string().optional(),
         onTapAction: z.string().optional(),
         onSwipeAction: z.string().optional(),

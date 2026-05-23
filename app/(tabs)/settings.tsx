@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { useI18n } from '../../src/i18n/useI18n';
 import { LANGUAGES, type Language } from '../../src/i18n/translations';
+import { useDeviceLayout } from '../../src/utils/deviceLayout';
 
 const C = {
   bg: '#0b1120',
@@ -92,7 +93,10 @@ export default function SettingsScreen() {
         <Text style={s.h1}>{t.settingsTitle}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* ── Language ── */}
         <Section title={t.sectionLanguage}>
@@ -194,6 +198,7 @@ const s = StyleSheet.create({
   h1: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
 
   scroll: { padding: 16, gap: 20, paddingBottom: 32 },
+  scrollTablet: { maxWidth: 560, width: '100%', alignSelf: 'center' },
 
   section: { gap: 7 },
   sectionTitle: {

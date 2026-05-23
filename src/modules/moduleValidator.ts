@@ -46,6 +46,8 @@ function collectButtonActions(node: UiNode): string[] {
     const acts: string[] = [];
     if (node.tickAction) acts.push(node.tickAction);
     if (node.onTapAction) acts.push(node.onTapAction);
+    if (node.onCollideAction) acts.push(node.onCollideAction);
+    if (node.onOutOfBoundsAction) acts.push(node.onOutOfBoundsAction);
     return acts;
   }
   if ('components' in node && Array.isArray(node.components)) {
@@ -118,7 +120,7 @@ export function validateGeneratedModule(raw: unknown): ValidateResult {
           ? Object.keys(normalized as object).slice(0, 30)
           : [],
     });
-    return { ok: false, error: errText };
+    return { ok: false, error: 'Il modulo generato ha una struttura non valida.' };
   }
   // Detect webGame by UI node OR by browser-style code patterns (AI sometimes forgets webGame UI node)
   const uiHasWebGame = hasWebGameNode(parsed.data.ui);

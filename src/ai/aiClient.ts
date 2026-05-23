@@ -211,9 +211,8 @@ async function generateWithOllama(
           typeof res.data === 'object' && res.data != null && 'error' in res.data
             ? JSON.stringify((res.data as { error: unknown }).error)
             : JSON.stringify(res.data).slice(0, 400);
-        const msg = `Ollama HTTP ${res.status}: ${detail}`;
-        reportGenAppError(`aiClient.${providerLabel}.http`, msg, { status: res.status, detail });
-        return { ok: false, error: msg };
+        reportGenAppError(`aiClient.${providerLabel}.http`, `Ollama HTTP ${res.status}`, { status: res.status, detail });
+        return { ok: false, error: res.status === 404 ? 'Modello Ollama non trovato, controlla il nome nelle impostazioni.' : 'Ollama ha risposto con un errore.' };
       }
 
       const content = res.data?.message?.content;
@@ -256,23 +255,18 @@ async function generateWithOllama(
         continue;
       }
 
+
       return { ok: true, data: validated.module };
     }
 
-    return {
-      ok: false,
-      error: `Ollama: modulo non valido anche dopo retry: ${lastGenerationError}. Contenuto (prime 500 char): ${lastContent.slice(0, 500)}`,
-    };
+    return { ok: false, error: 'Ollama non ha generato un modulo valido, riprova o semplifica la richiesta.' };
   } catch (e) {
     const err = e as Error & { code?: string };
+    reportGenAppError(`aiClient.${providerLabel}.catch`, e, { code: err.code, root });
     if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
-      const msg =
-        `Impossibile contattare Ollama all'indirizzo ${root}. Su telefono reale non usare localhost: è il telefono, non il Mac/PC. Metti l'IP del computer, es. http://192.168.x.x:11434. Sul Mac/PC avvia Ollama in ascolto sulla rete con OLLAMA_HOST=0.0.0.0 prima di ollama serve. Controlla firewall e porta 11434. Emulatore Android: http://10.0.2.2:11434.`;
-      reportGenAppError(`aiClient.${providerLabel}.network`, e, { code: err.code, root });
-      return { ok: false, error: msg };
+      return { ok: false, error: 'Impossibile connettersi a Ollama, controlla URL e rete.' };
     }
-    reportGenAppError(`aiClient.${providerLabel}.catch`, e, {});
-    return { ok: false, error: err.message || `Errore di rete verso Ollama` };
+    return { ok: false, error: 'Ollama ha risposto con un errore.' };
   }
 }
 
@@ -353,9 +347,12 @@ async function generateWithOpenAICompatible(
 
     if (res.status < 200 || res.status >= 300) {
       const detail = JSON.stringify(res.data).slice(0, 400);
-      const displayDetail = detail && detail !== '""' ? ` Dettaglio: ${detail}` : '';
-      const msg = `HTTP ${res.status}: ${detail}`;
-      reportGenAppError(`aiClient.${providerLabel}.http`, msg, { status: res.status, provider: providerLabel });
+      reportGenAppError(`aiClient.${providerLabel}.http`, `HTTP ${res.status}`, { status: res.status, provider: providerLabel, detail });
+      const msg = res.status === 401 || res.status === 403
+        ? 'API key non valida o scaduta.'
+        : res.status === 429
+        ? 'Limite di richieste raggiunto, riprova tra poco.'
+        : 'Il provider AI ha risposto con un errore.';
       return { ok: false, error: msg };
     }
 
@@ -407,13 +404,11 @@ async function generateWithOpenAICompatible(
       continue;
     }
 
+
     return { ok: true, data: validated.module };
   }
 
-  return {
-    ok: false,
-    error: `Modulo non valido anche dopo retry: ${lastGenerationError}. Contenuto (prime 500 char): ${lastContent.slice(0, 500)}`,
-  };
+  return { ok: false, error: 'Il provider AI non ha generato un modulo valido, riprova o semplifica la richiesta.' };
 }
 
 async function generateWithClaude(
@@ -468,8 +463,12 @@ async function generateWithClaude(
 
       if (res.status < 200 || res.status >= 300) {
         const detail = JSON.stringify(res.data).slice(0, 500);
-        const msg = `Claude API HTTP ${res.status}: ${detail}`;
-        reportGenAppError(`aiClient.${providerLabel}.http`, msg, { status: res.status });
+        reportGenAppError(`aiClient.${providerLabel}.http`, `Claude HTTP ${res.status}`, { status: res.status, detail });
+        const msg = res.status === 401 || res.status === 403
+          ? 'API key Claude non valida o scaduta.'
+          : res.status === 429
+          ? 'Limite di richieste Claude raggiunto, riprova tra poco.'
+          : 'Claude ha risposto con un errore.';
         return { ok: false, error: msg };
       }
 
@@ -508,25 +507,18 @@ async function generateWithClaude(
         continue;
       }
 
+
       return { ok: true, data: validated.module };
     }
 
-    return {
-      ok: false,
-      error: `Claude: modulo non valido anche dopo retry: ${lastGenerationError}. Contenuto (prime 500 char): ${lastContent.slice(0, 500)}`,
-    };
+    return { ok: false, error: 'Claude non ha generato un modulo valido, riprova o semplifica la richiesta.' };
   } catch (e) {
     const err = e as Error & { code?: string };
-    const msg =
-      err.message?.includes('Network Error') || err.code
-        ? `Errore di rete verso Claude API (${url}). Controlla connessione internet, API key, VPN/firewall/DNS e Base URL.`
-        : err.message || 'Errore Claude API';
-    reportGenAppError(`aiClient.${providerLabel}.catch`, e, {
-      apiUrl: url.slice(0, 120),
-      code: err.code,
-      model,
-    });
-    return { ok: false, error: msg };
+    reportGenAppError(`aiClient.${providerLabel}.catch`, e, { apiUrl: url.slice(0, 120), code: err.code, model });
+    if (err.message?.includes('Network Error') || err.code === 'ECONNREFUSED') {
+      return { ok: false, error: 'Impossibile connettersi a Claude API, controlla connessione e URL.' };
+    }
+    return { ok: false, error: 'Claude ha risposto con un errore.' };
   }
 }
 

@@ -1,15 +1,12 @@
 import * as Linking from 'expo-linking';
 
-const ALLOWED = ['mailto:', 'tel:', 'sms:'];
+const BLOCKED = ['javascript:', 'file:', 'blob:'];
 
 function assertAllowedUrl(url: string): string {
   const t = url.trim();
   const low = t.toLowerCase();
-  if (low.startsWith('javascript:') || low.startsWith('file:') || low.startsWith('blob:')) {
+  if (BLOCKED.some((p) => low.startsWith(p))) {
     throw new Error('Schema URL non consentito');
-  }
-  if (!ALLOWED.some((p) => low.startsWith(p))) {
-    throw new Error('Solo mailto:, tel: e sms: sono consentiti (usa api.linking).');
   }
   return t;
 }

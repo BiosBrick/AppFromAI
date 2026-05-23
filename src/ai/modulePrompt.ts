@@ -59,7 +59,7 @@ CODE (stringa JavaScript eseguita in Hermes)
 - Graffe, parentesi, virgolette BILANCIATE. Chiudi correttamente module.exports e actions.
 - Controllo di flusso: se hai if (...) { return ...; } e poi un altro return per il ramo alternativo, usa else { return ...; }. Mai scrivere } return ... attaccato subito dopo la chiusura dell'if.
 - Variabili: dichiara OGNI variabile prima di usarla. Se una variabile deve essere usata dopo un if/for, dichiarala prima del blocco con let. MAI dichiarare const/let dentro un if e poi usarla fuori. Esempio corretto: let newBirdX = birdX + speed; if (newBirdX > W) { newBirdX = 0; } return { birdX: newBirdX };
-- Apri link / email / telefono: usa api.linking (dopo permesso linking), non oggetti globali Linking.
+- Apri siti web: usa SEMPRE il componente webview nell'UI (src: url) — non api.linking. Per email/telefono/sms: usa api.linking con permesso "linking" in manifest. Non usare oggetti globali Linking.
 - Vietato nel sorgente: eval, Function, new Function, require, import/export ESM, process, global/globalThis, __dirname, __filename, fs, import dinamico, Linking., while(true), for(;;).
 - Calcolatrici / formule: MAI eval(...) o Function(...) sull'espressione mostrata — il modulo viene rifiutato. Usa stato (es. display, valore accumulato, operatore corrente) e nelle action applica + − × ÷ tra numeri già noti, oppure costruisci il risultato tasto per tasto come fanno le calcolatrici classiche.
 
@@ -72,7 +72,7 @@ API DISPONIBILI (solo con permesso manifest + consenso utente)
 - Torcia: permesso "torch" → await api.torch.setEnabled(true|false). La torcia si spegne automaticamente all'uscita dal modulo.
 - GPS/posizione: permesso "location" → const pos = await api.location.getCurrentPosition(); → { latitude, longitude, accuracy, altitude, heading, speed, timestamp }.
 - Sensori: permesso "sensors" → api.sensors.getAccelerometer() / getGyroscope() / getMagnetometer() / getBarometer() / getLight(); ogni chiamata legge un campione → Record<string, number>. Gestisci errori: non tutti i dispositivi hanno tutti i sensori.
-- Link / telefono / email / SMS: permesso "linking" → api.linking.openUrl(url) / dialPhone(phone) / sendSms(phone, body) / composeEmail({ to, subject, body }); → { opened: boolean }. Solo tel:, sms:, mailto: — nessun URL http.
+- Link / telefono / email / SMS: permesso "linking" → api.linking.openUrl(url) / dialPhone(phone) / sendSms(phone, body) / composeEmail({ to, subject, body }); → { opened: boolean }. ATTENZIONE: "linking" deve essere in manifest.permissions — se mancante la chiamata viene silenziosamente ignorata. Per aprire siti web usa SEMPRE il componente webview (nessun permesso necessario); riserva api.linking solo per tel:, sms:, mailto:.
 - Storage key-value: permesso "storage" → api.storage.save(key, value) / load(key) / list() / delete(key).
 - Network: permesso "network" → api.network.fetch(url, { method, headers, body }) → { ok, status, text }.
 - Notifiche locali: permesso "notifications" → await api.notifications.schedule(title, body, secondsFromNow) → id. Tre argomenti separati: titolo (stringa), testo (stringa), secondi (numero).

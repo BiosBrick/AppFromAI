@@ -43,6 +43,7 @@ const C = {
 export default function GeneraScreen() {
   const { settings } = useSettings();
   const { t } = useI18n();
+  const { isTablet } = useDeviceLayout();
   const [prompt, setPrompt] = useState('');
   const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -144,7 +145,7 @@ export default function GeneraScreen() {
       >
         <ScrollView
           style={s.flex}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[s.scrollContent, isTablet && s.scrollTablet]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -277,6 +278,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
+  scrollTablet: { maxWidth: 640, width: '100%', alignSelf: 'center' },
 
   topBar: {
     flexDirection: 'row',
@@ -414,6 +416,7 @@ const s = StyleSheet.create({
     padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 8 : 16,
   },
+  footerTablet: { maxWidth: 640, width: '100%', alignSelf: 'center' },
   btn: {
     backgroundColor: C.primary,
     borderRadius: 18,
