@@ -94,7 +94,7 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]}
+        contentContainerStyle={[s.scroll, s.scrollTablet]}
         showsVerticalScrollIndicator={false}
       >
 

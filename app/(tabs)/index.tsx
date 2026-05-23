@@ -18,6 +18,7 @@ import { saveModule } from '../../src/modules/moduleStore';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { useI18n } from '../../src/i18n/useI18n';
 import { GeneratingModal } from '../../src/components/GeneratingModal';
+import {useDeviceLayout} from "../../src/utils/deviceLayout";
 
 /* ── Design tokens ── */
 const C = {
