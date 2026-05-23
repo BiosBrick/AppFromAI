@@ -29,6 +29,7 @@ import { GeneratingModal } from '../../src/components/GeneratingModal';
 import { StyleEditorSheet } from '../../src/components/StyleEditorSheet';
 import { updateModuleStyle } from '../../src/modules/moduleStore';
 import { applyColorChanges, applyTextChanges } from '../../src/modules/styleEditor';
+import {DeviceLayout, useDeviceLayout} from "../../src/utils/deviceLayout";
 
 const C = {
   bg: '#0b1120',
@@ -56,6 +57,8 @@ export default function ModuleScreen() {
   const [answered, setAnswered] = useState(false);
   const [grantedIds, setGrantedIds] = useState<MotherPermission[]>([]);
   const [gateBusy, setGateBusy] = useState(false);
+  const { isTablet } = useDeviceLayout();
+
 
   // ── Style editor state ────────────────────────────────────────────────────
   const [styleSheet, setStyleSheet] = useState(false);
@@ -330,7 +333,9 @@ const styles = StyleSheet.create({
   notFound: { color: C.text, fontSize: 18, fontWeight: '700' },
   notFoundSub: { color: C.muted, fontSize: 14 },
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-
+  bodyTablet: {
+    paddingHorizontal: 24,
+  },
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingRight: 4 },
   headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   headerBtnLabel: { color: C.primary, fontSize: 15, fontWeight: '600' },

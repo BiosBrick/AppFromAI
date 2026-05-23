@@ -58,35 +58,6 @@ export function resolveTheme(theme?: UiTheme): ResolvedTheme {
   };
 }
 
-const PRIMARY_FIELDS = ['name', 'nome', 'title', 'titolo', 'label', 'text', 'testo', 'description', 'descrizione', 'value', 'valore', 'item', 'elemento'];
-
-function resolveListItem(item: unknown): { primary: string; secondary?: string } {
-  let resolved: unknown = item;
-  if (typeof item === 'string') {
-    const t = item.trim();
-    if (t.startsWith('{') && t.endsWith('}')) {
-      try { resolved = JSON.parse(t); } catch { /* keep as string */ }
-    }
-  }
-  if (typeof resolved === 'string') return { primary: resolved };
-  if (typeof resolved !== 'object' || resolved === null) return { primary: String(resolved) };
-  const obj = resolved as Record<string, unknown>;
-  let primary = '';
-  for (const f of PRIMARY_FIELDS) {
-    if (typeof obj[f] === 'string' && obj[f]) { primary = obj[f] as string; break; }
-  }
-  if (!primary) {
-    const first = Object.values(obj).find((v) => typeof v === 'string' && v);
-    primary = typeof first === 'string' ? first : JSON.stringify(obj);
-  }
-  const secondary = Object.entries(obj)
-    .filter(([, v]) => (typeof v === 'string' || typeof v === 'number') && v !== primary && v !== '')
-    .slice(0, 4)
-    .map(([, v]) => String(v))
-    .join(' · ') || undefined;
-  return { primary, secondary };
-}
-
 function layoutToViewStyle(layout?: UiLayoutProps): ViewStyle {
   if (!layout) return {};
   const s: ViewStyle = {};
@@ -644,10 +615,6 @@ function GameViewNode({
 }) {
   const onButtonRef = useRef(ctx.onButton);
   onButtonRef.current = ctx.onButton;
-  const stateRef = useRef(ctx.state);
-  stateRef.current = ctx.state;
-  const setStateRef = useRef(ctx.setState);
-  setStateRef.current = ctx.setState;
   const tickBusyRef = useRef(false);
   const lastTickRef = useRef(Date.now());
 
@@ -669,10 +636,10 @@ function GameViewNode({
     };
 
     runTick();
-    const id = setInterval(runTick, effectiveTickMs);
+    const id = setInterval(runTick, ms);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.hasError, node.tickAction, effectiveTickMs, node.bind, gameGravity, node.onCollideAction, node.onOutOfBoundsAction]);
+  }, [ctx.hasError, node.tickAction, node.tickMs]);
 
   const gw = node.width  ?? 320;
   const gh = node.height ?? 480;
@@ -706,12 +673,12 @@ function GameViewNode({
       style={{
         width: gw,
         height: gh,
-        backgroundColor: bgColor,
+        backgroundColor: '#101827',
         overflow: 'hidden',
         borderRadius: 12,
         alignSelf: 'center',
         borderWidth: 1,
-        borderColor,
+        borderColor: '#2d3f5c',
         ...layoutToViewStyle(node.layout),
       }}
     >
@@ -1026,10 +993,15 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
       );
 
       const onPress = () => {
+        console.log('[Button] pressed', { id: node.id, navigate: node.navigate, action: actionName });
         if (node.navigate) {
+          console.log('[Button] calling onNavigate →', node.navigate);
           ctx.onNavigate(node.navigate);
         } else if (actionName) {
+          console.log('[Button] calling onButton →', actionName);
           void ctx.onButton(actionName, node.actionInput ?? {});
+        } else {
+          console.log('[Button] no navigate and no action — nothing to do');
         }
       };
 
@@ -1196,54 +1168,6 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
 
     case 'gamepad':
       return <GamepadNode key={key} node={node} ctx={ctx} nodeKey={key} />;
-
-    case 'webview': {
-      const rawUrl = node.src ?? '';
-      const webUrl = rawUrl && !rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')
-        ? 'https://' + rawUrl
-        : rawUrl;
-      const displayUrl = webUrl.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
-      const openBrowser = async () => {
-        if (!webUrl) return;
-        try {
-          await WebBrowser.openBrowserAsync(webUrl);
-        } catch {
-          // silently ignore
-        }
-      };
-      return (
-        <Pressable
-          key={key}
-          onPress={() => { void openBrowser(); }}
-          style={({ pressed }) => [
-            applyStyle(
-              {
-                borderWidth: 1,
-                borderColor: t.border,
-                borderRadius: 14,
-                padding: 14,
-                backgroundColor: t.surface,
-                gap: 10,
-                alignItems: 'center',
-                flexDirection: 'row',
-                opacity: pressed ? 0.75 : 1,
-              },
-              node.style
-            ),
-            layoutToViewStyle(node.layout) as ViewStyle,
-          ]}
-        >
-          <Text style={{ fontSize: 22 }}>🌐</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: t.text, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
-              {displayUrl || webUrl}
-            </Text>
-            <Text style={{ color: t.muted, fontSize: 12, marginTop: 2 }}>Tocca per aprire nel browser</Text>
-          </View>
-          <Text style={{ color: t.primary, fontSize: 13, fontWeight: '700' }}>Apri →</Text>
-        </Pressable>
-      );
-    }
 
     default:
       return null;
