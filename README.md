@@ -322,7 +322,7 @@ Language is auto-detected from the device locale, and can be overridden at any t
 ## Getting started
 
 ```bash
-git clone https://github.com/your-username/AppFromAI
+git clone https://github.com/BiosBrick/AppFromAI
 cd AppFromAI
 npm install
 npx expo start
