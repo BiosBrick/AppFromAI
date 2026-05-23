@@ -119,6 +119,14 @@ export type UiNode =
   | { type: 'audioRecorder'; id?: string; statusBind?: string; layout?: UiLayoutProps }
   | { type: 'qrScanner'; id?: string; hint?: string; layout?: UiLayoutProps }
   | {
+      /** Motore gioco WebView — canvas 2D + requestAnimationFrame 60fps nativi */
+      type: 'webGame';
+      id?: string;
+      width?: number;
+      height?: number;
+      layout?: UiLayoutProps;
+    }
+  | {
       type: 'gamepad';
       id?: string;
       /**
@@ -156,29 +164,13 @@ export type UiNode =
       fps?: number;
       /** Nome dell'action chiamata ad ogni tick del loop di gioco. */
       tickAction?: string;
-      /** Nome dell'action chiamata al tap sul canvas; riceve { x, y } nell'input. */
+      /** Nome dell'action chiamata al tap sul canvas; riceve { x, y, jump:-8 } nell'input. */
       onTapAction?: string;
-      /** Accelerazione gravitazionale verso il basso applicata automaticamente agli oggetti con vy (default 0). */
-      gravity?: number;
-      /** Colore di sfondo del canvas (default '#101827'). */
-      bgColor?: string;
-      /** Colore del bordo del canvas. */
-      borderColor?: string;
-      /** Action chiamata quando due oggetti con id si sovrappongono; riceve { a: idA, b: idB }. */
+      /** Nome dell'action chiamata allo swipe sul canvas; riceve { dir:'left'|'right'|'up'|'down', dx, dy }. */
+      onSwipeAction?: string;
+      layout?: UiLayoutProps;
       onCollideAction?: string;
-      /** Action chiamata quando un oggetto con id esce dai bordi del canvas; riceve { id, x, y }. */
       onOutOfBoundsAction?: string;
-      layout?: UiLayoutProps;
-    }
-  | {
-      type: 'webview';
-      id?: string;
-      /** URL da aprire nella WebView. */
-      src: string;
-      /** Altezza della WebView in px (default 400). */
-      height?: number;
-      style?: UiStyleProps;
-      layout?: UiLayoutProps;
     };
 
 /** Oggetto della scena di gioco. I campi vx/vy/gravity abilitano fisica automatica nel renderer. */

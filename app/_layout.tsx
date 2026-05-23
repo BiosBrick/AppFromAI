@@ -19,6 +19,33 @@ export default function RootLayout() {
               headerShadowVisible: false,
             }}
           />
+          <Stack.Screen
+            name="settings/ollama"
+            options={{
+              title: 'Ollama',
+              headerStyle: { backgroundColor: '#0b1120' },
+              headerTintColor: '#e8edf5',
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="settings/openai"
+            options={{
+              title: 'OpenAI API',
+              headerStyle: { backgroundColor: '#0b1120' },
+              headerTintColor: '#e8edf5',
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="settings/claude"
+            options={{
+              title: 'Claude API',
+              headerStyle: { backgroundColor: '#0b1120' },
+              headerTintColor: '#e8edf5',
+              headerShadowVisible: false,
+            }}
+          />
         </Stack>
         <CameraCaptureModalHost />
         <QrScanModalHost />

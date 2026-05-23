@@ -8,6 +8,18 @@ import { runAction, tryCompileModuleActions, type CompiledActions } from '../mod
 import { renderNode, resolveTheme, type ResolvedTheme } from './components';
 import { useI18n } from '../i18n/useI18n';
 
+function hasWebGameNode(node: UiNode): boolean {
+  if (node.type === 'webGame') return true;
+  if (node.type === 'navigator') return Object.values(node.screens).some((s) => s.components.some(hasWebGameNode));
+  if ('components' in node && Array.isArray(node.components)) return node.components.some(hasWebGameNode);
+  return false;
+}
+
+// Same patterns as looksLikeWebGameCode in moduleValidator — kept in sync as fallback
+// for modules saved before the validator fix was deployed.
+const WEBGAME_CODE_RE =
+  /requestAnimationFrame\s*\(|canvas\.addEventListener\s*\(|document\.getElementById\s*\(|ctx\s*\.\s*(fillRect|drawImage|clearRect|beginPath|arc|stroke)\s*\(/;
+
 function collectButtonActions(node: UiNode): string[] {
   if (node.type === 'button') return node.action && !node.navigate ? [node.action] : [];
   if (node.type === 'navigator') {
@@ -85,9 +97,16 @@ type Props = {
 
 export function DynamicRenderer({ ui, code, motherApi }: Props) {
   const { t } = useI18n();
-  const compiled = useMemo(() => tryCompileModuleActions(code), [code]);
+  const isWebGame = useMemo(() => hasWebGameNode(ui) || WEBGAME_CODE_RE.test(code), [ui, code]);
+
+  // WebGame modules: code runs inside WebView, skip sandbox compilation
+  const compiled = useMemo(
+    () => isWebGame ? { ok: true as const, actions: {} } : tryCompileModuleActions(code),
+    [code, isWebGame]
+  );
 
   const compileError = useMemo(() => {
+    if (isWebGame) return null; // WebGame: no sandbox, no action check
     if (!compiled.ok) return compiled.error;
     const uiActions = [...new Set(collectButtonActions(ui))];
     const missing = uiActions.filter((a) => !(a in compiled.actions));
@@ -95,7 +114,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
       return `Azioni nell'UI non trovate nel codice: ${missing.join(', ')}. Elimina il modulo e rigeneralo.`;
     }
     return null;
-  }, [compiled, ui]);
+  }, [compiled, ui, isWebGame]);
 
   const actions: CompiledActions | null = compiled.ok ? compiled.actions : null;
   const [state, setState] = useState<Record<string, unknown>>(() => buildInitialState(ui));
@@ -216,7 +235,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
     theme = resolveTheme();
   }
 
-  const ctx = { state, setState: patchState, onButton, onNavigate, busyAction, theme, hasError: Boolean(error) };
+  const ctx = { state, setState: patchState, onButton, onNavigate, busyAction, theme, hasError: Boolean(error), webgameCode: isWebGame ? code : undefined };
 
   // ── Which node to render ──
   const nodeToRender: UiNode | null =
@@ -237,7 +256,11 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
       )}
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {nodeToRender ? renderNode(nodeToRender, ctx, isNavigator ? currentScreenKey : 'root') : null}
+        {isWebGame && !hasWebGameNode(ui)
+          ? renderNode({ type: 'webGame' as const, id: 'game', width: 360, height: 600 }, ctx, 'root')
+          : nodeToRender
+          ? renderNode(nodeToRender, ctx, isNavigator ? currentScreenKey : 'root')
+          : null}
         {error ? (
           <View style={styles.errBox}>
             <Text style={styles.errText}>{error}</Text>

@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
   Platform,
@@ -17,9 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { generateModule } from '../../src/ai/aiClient';
 import { saveModule } from '../../src/modules/moduleStore';
 import { useSettings } from '../../src/settings/SettingsContext';
-import { DinoGame } from '../../src/components/DinoGame';
 import { useI18n } from '../../src/i18n/useI18n';
-import { useDeviceLayout } from '../../src/utils/deviceLayout';
+import { GeneratingModal } from '../../src/components/GeneratingModal';
+import {useDeviceLayout} from "../../src/utils/deviceLayout";
 
 /* ── Design tokens ── */
 const C = {
@@ -41,6 +40,7 @@ const C = {
   successBorder: '#065f46',
 };
 
+// ── Main screen ─────────────────────────────────────────────────────────────
 export default function GeneraScreen() {
   const { settings } = useSettings();
   const { t } = useI18n();
@@ -48,6 +48,7 @@ export default function GeneraScreen() {
   const [prompt, setPrompt] = useState('');
   const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [generationDone, setGenerationDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -73,11 +74,13 @@ export default function GeneraScreen() {
     }
     setError(null);
     setSuccess(false);
+    setGenerationDone(false);
     setLoading(true);
     startPulse();
     try {
       const res = await generateModule(prompt.trim(), {
         useMock: false,
+        language: settings.language || undefined,
         ...(settings.provider === 'ollama'
           ? {
               ollamaBaseUrl: settings.ollamaUrl || undefined,
@@ -90,35 +93,52 @@ export default function GeneraScreen() {
               claudeApiKey: settings.claudeApiKey || undefined,
               claudeModel: settings.claudeModel || 'claude-sonnet-4-20250514',
             }
-          : { apiUrl: settings.openaiUrl || undefined }),
+          : {
+              apiUrl: settings.openaiUrl || undefined,
+              apiKey: settings.openaiKey || undefined,
+              apiModel: settings.openaiModel || undefined,
+            }),
       });
       if (!res.ok) {
-        setError(res.error);
+        setError(t.humanizeError(res.error));
         return;
       }
       const saved = await saveModule(res.data, prompt.trim());
       if (!saved.ok) {
-        setError(saved.error);
+        setError(t.humanizeError(saved.error));
         return;
       }
+      setGenerationDone(true);
+      // Brief pause showing all steps done, then close modal
+      await new Promise<void>((r) => setTimeout(r, 1200));
       setPrompt('');
       setSuccess(true);
       setTimeout(() => setSuccess(false), 5000);
     } finally {
       setLoading(false);
+      setGenerationDone(false);
       stopPulse();
     }
   };
 
-  const providerLabel = settings.provider === 'ollama'
-    ? settings.ollamaModel || 'Ollama'
-    : settings.provider === 'claude'
-    ? settings.claudeModel || 'Claude'
-    : 'OpenAI';
+  const providerLabel =
+    settings.provider === 'ollama'
+      ? settings.ollamaModel || 'Ollama'
+      : settings.provider === 'claude'
+      ? settings.claudeModel || 'Claude'
+      : settings.openaiModel || 'OpenAI';
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
+
+      {/* ── Loading overlay ── */}
+      <GeneratingModal
+        visible={loading}
+        done={generationDone}
+        prompt={prompt}
+      />
+
       <KeyboardAvoidingView
         style={s.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -157,10 +177,8 @@ export default function GeneraScreen() {
           {/* ── Prompt area ── */}
           <View style={s.promptOuter}>
             <View style={[s.promptBox, focused && s.promptBoxFocused]}>
-              {/* Corner decoration */}
               <View style={s.cornerTL} />
               <View style={s.cornerBR} />
-
               <TextInput
                 style={s.promptInput}
                 placeholder={t.placeholder}
@@ -177,8 +195,6 @@ export default function GeneraScreen() {
                 editable={!loading}
                 autoCorrect={false}
               />
-
-              {/* Toolbar inside the box */}
               <View style={s.promptToolbar}>
                 <Text style={s.charCount}>{t.charCount(prompt.length)}</Text>
                 {prompt.length > 0 && !loading ? (
@@ -212,16 +228,14 @@ export default function GeneraScreen() {
           {error ? (
             <View style={s.feedbackBox}>
               <View style={[s.feedbackInner, s.feedbackError]}>
-                <Ionicons name="alert-circle" size={15} color={C.error} />
-                <View style={s.feedbackText}>
-                  <Text style={s.feedbackMsg}>{error}</Text>
-                </View>
+                <Ionicons name="alert-circle" size={18} color={C.error} style={{ marginTop: 1 }} />
+                <Text style={s.feedbackMsg}>{error}</Text>
               </View>
             </View>
           ) : success ? (
             <View style={s.feedbackBox}>
               <View style={[s.feedbackInner, s.feedbackSuccess]}>
-                <Ionicons name="checkmark-circle" size={15} color={C.success} />
+                <Ionicons name="checkmark-circle" size={18} color={C.success} style={{ marginTop: 1 }} />
                 <View style={s.feedbackText}>
                   <Text style={[s.feedbackMsg, { color: C.success }]}>{t.successTitle}</Text>
                   <Text style={s.feedbackHint}>{t.successHint}</Text>
@@ -230,11 +244,11 @@ export default function GeneraScreen() {
             </View>
           ) : null}
 
-          {loading ? <DinoGame /> : <View style={s.spacer} />}
+          <View style={s.spacer} />
         </ScrollView>
 
-        {/* ── CTA — always visible, outside ScrollView ── */}
-        <View style={[s.footer, isTablet && s.footerTablet]}>
+        {/* ── CTA ── */}
+        <View style={s.footer}>
           <Pressable
             style={({ pressed }) => [
               s.btn,
@@ -244,20 +258,15 @@ export default function GeneraScreen() {
             disabled={loading}
             onPress={onGenerate}
           >
-            {loading ? (
-              <View style={s.btnInner}>
-                <ActivityIndicator color="rgba(255,255,255,0.9)" size="small" />
-                <Text style={s.btnText}>{t.btnGenerating}</Text>
-              </View>
-            ) : (
-              <View style={s.btnInner}>
-                <Ionicons name="sparkles" size={20} color="#fff" />
-                <Text style={s.btnText}>{t.btnGenerate}</Text>
+            <View style={s.btnInner}>
+              <Ionicons name="sparkles" size={20} color="#fff" />
+              <Text style={s.btnText}>{loading ? t.btnGenerating : t.btnGenerate}</Text>
+              {!loading && (
                 <View style={s.btnArrow}>
                   <Ionicons name="arrow-forward" size={16} color="rgba(255,255,255,0.6)" />
                 </View>
-              </View>
-            )}
+              )}
+            </View>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -265,13 +274,13 @@ export default function GeneraScreen() {
   );
 }
 
+// ── Main screen styles ────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   scrollTablet: { maxWidth: 640, width: '100%', alignSelf: 'center' },
 
-  /* Top bar */
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -307,30 +316,15 @@ const s = StyleSheet.create({
   modelDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary },
   modelText: { color: C.muted, fontSize: 12, fontWeight: '600' },
 
-  /* Hero */
   hero: {
     paddingHorizontal: 20,
     paddingTop: 28,
     paddingBottom: 24,
     gap: 6,
   },
-  heroLine1: {
-    fontSize: 36,
-    fontWeight: '300',
-    color: C.muted,
-    letterSpacing: -1,
-  },
-  heroLine2Row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  heroLine2: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: C.text,
-    letterSpacing: -2,
-  },
+  heroLine1: { fontSize: 36, fontWeight: '300', color: C.muted, letterSpacing: -1 },
+  heroLine2Row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroLine2: { fontSize: 48, fontWeight: '900', color: C.text, letterSpacing: -2 },
   heroAccent: {
     backgroundColor: C.primary,
     borderRadius: 10,
@@ -338,23 +332,10 @@ const s = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 4,
   },
-  heroAccentText: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  heroSub: {
-    color: C.muted,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 4,
-  },
+  heroAccentText: { color: '#fff', fontSize: 22, fontWeight: '900', letterSpacing: 1 },
+  heroSub: { color: C.muted, fontSize: 14, lineHeight: 21, marginTop: 4 },
 
-  /* Prompt */
-  promptOuter: {
-    paddingHorizontal: 20,
-  },
+  promptOuter: { paddingHorizontal: 20 },
   promptBox: {
     backgroundColor: C.surface,
     borderRadius: 20,
@@ -364,32 +345,16 @@ const s = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  promptBoxFocused: {
-    borderColor: C.borderFocus,
-  },
+  promptBoxFocused: { borderColor: C.borderFocus },
   cornerTL: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 24,
-    height: 24,
-    borderTopLeftRadius: 20,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: C.primary,
-    opacity: 0.4,
+    position: 'absolute', top: 0, left: 0, width: 24, height: 24,
+    borderTopLeftRadius: 20, borderTopWidth: 2, borderLeftWidth: 2,
+    borderColor: C.primary, opacity: 0.4,
   },
   cornerBR: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderBottomRightRadius: 20,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-    borderColor: C.primary,
-    opacity: 0.4,
+    position: 'absolute', bottom: 0, right: 0, width: 24, height: 24,
+    borderBottomRightRadius: 20, borderBottomWidth: 2, borderRightWidth: 2,
+    borderColor: C.primary, opacity: 0.4,
   },
   promptInput: {
     padding: 18,
@@ -399,7 +364,6 @@ const s = StyleSheet.create({
     lineHeight: 26,
     minHeight: 130,
     textAlignVertical: 'top',
-    fontFamily: Platform.OS === 'ios' ? 'System' : undefined,
   },
   promptToolbar: {
     flexDirection: 'row',
@@ -410,17 +374,9 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: C.border,
   },
-  charCount: {
-    color: C.faint,
-    fontSize: 11,
-    fontVariant: ['tabular-nums'],
-  },
+  charCount: { color: C.faint, fontSize: 11, fontVariant: ['tabular-nums'] },
 
-  examples: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    gap: 10,
-  },
+  examples: { paddingHorizontal: 20, paddingTop: 14, gap: 10 },
   exampleChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -432,31 +388,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
-  exampleChipPressed: {
-    backgroundColor: C.surfaceHigh,
-    borderColor: C.borderFocus,
-  },
+  exampleChipPressed: { backgroundColor: C.surfaceHigh, borderColor: C.borderFocus },
   exampleIndex: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    overflow: 'hidden',
-    backgroundColor: C.primary,
-    color: '#fff',
-    textAlign: 'center',
-    lineHeight: 22,
-    fontSize: 12,
-    fontWeight: '900',
+    width: 22, height: 22, borderRadius: 11, overflow: 'hidden',
+    backgroundColor: C.primary, color: '#fff', textAlign: 'center',
+    lineHeight: 22, fontSize: 12, fontWeight: '900',
   },
-  exampleText: {
-    flex: 1,
-    color: C.text,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
+  exampleText: { flex: 1, color: C.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
 
-  /* Feedback */
   feedbackBox: { paddingHorizontal: 20, paddingTop: 12 },
   feedbackInner: {
     flexDirection: 'row',
@@ -469,12 +408,11 @@ const s = StyleSheet.create({
   feedbackError: { backgroundColor: C.errorBg, borderColor: C.errorBorder },
   feedbackSuccess: { backgroundColor: C.successBg, borderColor: C.successBorder },
   feedbackText: { flex: 1, gap: 4 },
-  feedbackMsg: { color: C.error, fontSize: 13, fontWeight: '600' },
+  feedbackMsg: { flex: 1, color: C.error, fontSize: 14, fontWeight: '500', lineHeight: 20 },
   feedbackHint: { color: C.muted, fontSize: 12, lineHeight: 17 },
 
   spacer: { height: 20 },
 
-  /* Footer / CTA */
   footer: {
     padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 8 : 16,
@@ -493,22 +431,7 @@ const s = StyleSheet.create({
   },
   btnLoading: { opacity: 0.65, shadowOpacity: 0 },
   btnPressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
-  btnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 8,
-  },
-  btnText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-    flex: 1,
-  },
-  btnArrow: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 10,
-    padding: 4,
-  },
+  btnInner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8 },
+  btnText: { color: '#fff', fontSize: 17, fontWeight: '700', letterSpacing: 0.2, flex: 1 },
+  btnArrow: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: 4 },
 });

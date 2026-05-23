@@ -202,6 +202,14 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
       .extend({ layout: uiLayoutPropsSchema.optional() }),
     z
       .object({
+        type: z.literal('webGame'),
+        id: z.string().optional(),
+        width: z.number().optional(),
+        height: z.number().optional(),
+      })
+      .extend({ layout: uiLayoutPropsSchema.optional() }),
+    z
+      .object({
         type: z.literal('gamepad'),
         id: z.string().optional(),
         direction: z.enum(['row', 'dpad', 'split']).optional(),
@@ -229,20 +237,7 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
         fps: z.number().min(10).max(60).optional(),
         tickAction: z.string().optional(),
         onTapAction: z.string().optional(),
-        gravity: z.number().optional(),
-        bgColor: z.string().optional(),
-        borderColor: z.string().optional(),
-        onCollideAction: z.string().optional(),
-        onOutOfBoundsAction: z.string().optional(),
-      })
-      .extend({ layout: uiLayoutPropsSchema.optional() }),
-    z
-      .object({
-        type: z.literal('webview'),
-        id: z.string().optional(),
-        src: z.string().min(4),
-        height: z.number().optional(),
-        style: uiStylePropsSchema.optional(),
+        onSwipeAction: z.string().optional(),
       })
       .extend({ layout: uiLayoutPropsSchema.optional() }),
   ]);

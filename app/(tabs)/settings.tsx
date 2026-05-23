@@ -1,8 +1,16 @@
-import React from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { useI18n } from '../../src/i18n/useI18n';
 import { LANGUAGES, type Language } from '../../src/i18n/translations';
@@ -11,15 +19,15 @@ import { useDeviceLayout } from '../../src/utils/deviceLayout';
 const C = {
   bg: '#0b1120',
   surface: '#1a2236',
-  surfaceHigh: '#22304a',
   border: '#2d3f5c',
   primary: '#6366f1',
   text: '#e8edf5',
   muted: '#7a92b3',
   faint: '#3d5070',
+  success: '#34d399',
+  overlay: 'rgba(0,0,0,0.7)',
 };
 
-/* ── Reusable Section wrapper ── */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={s.section}>
@@ -29,83 +37,30 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/* ── Single settings row ── */
-function Row({
+function NavRow({
   label,
   hint,
+  active,
   last,
-  children,
+  onPress,
 }: {
   label: string;
   hint?: string;
+  active?: boolean;
   last?: boolean;
-  children: React.ReactNode;
+  onPress: () => void;
 }) {
   return (
-    <View style={[s.row, !last && s.rowDivider]}>
+    <Pressable style={[s.row, !last && s.rowDivider]} onPress={onPress}>
       <View style={s.rowLabels}>
         <Text style={s.rowLabel}>{label}</Text>
         {hint ? <Text style={s.rowHint}>{hint}</Text> : null}
       </View>
-      {children}
-    </View>
-  );
-}
-
-/* ── Provider radio button ── */
-function ProviderOption({
-  value,
-  current,
-  label,
-  hint,
-  onSelect,
-  last,
-}: {
-  value: 'ollama' | 'openai' | 'claude';
-  current: 'ollama' | 'openai' | 'claude';
-  label: string;
-  hint: string;
-  onSelect: () => void;
-  last?: boolean;
-}) {
-  const active = value === current;
-  return (
-    <Pressable style={[s.row, !last && s.rowDivider]} onPress={onSelect}>
-      <View style={s.rowLabels}>
-        <Text style={[s.rowLabel, active && s.rowLabelActive]}>{label}</Text>
-        <Text style={s.rowHint}>{hint}</Text>
-      </View>
-      <View style={[s.radio, active && s.radioActive]}>
-        {active ? <View style={s.radioDot} /> : null}
-      </View>
-    </Pressable>
-  );
-}
-
-/* ── Language option ── */
-function LangOption({
-  code,
-  label,
-  flag,
-  current,
-  onSelect,
-  last,
-}: {
-  code: string;
-  label: string;
-  flag: string;
-  current: string;
-  onSelect: () => void;
-  last?: boolean;
-}) {
-  const active = code === current;
-  return (
-    <Pressable style={[s.row, !last && s.rowDivider]} onPress={onSelect}>
-      <View style={s.rowLabels}>
-        <Text style={[s.rowLabel, active && s.rowLabelActive]}>{flag}  {label}</Text>
-      </View>
-      <View style={[s.radio, active && s.radioActive]}>
-        {active ? <View style={s.radioDot} /> : null}
+      <View style={s.rowRight}>
+        {active ? (
+          <View style={s.activeDot} />
+        ) : null}
+        <Ionicons name="chevron-forward" size={16} color={C.muted} />
       </View>
     </Pressable>
   );
@@ -114,196 +69,115 @@ function LangOption({
 export default function SettingsScreen() {
   const { settings, updateSettings } = useSettings();
   const { t } = useI18n();
-  const { isTablet } = useDeviceLayout();
+  const router = useRouter();
+  const [langModal, setLangModal] = useState(false);
 
   const currentLang = settings.language || '';
+  const currentLangObj = LANGUAGES.find((l) => l.code === currentLang);
+  const langLabel = currentLangObj
+    ? `${currentLangObj.flag}  ${currentLangObj.label}`
+    : '🌐  Auto';
+
+  const providerHint = (p: 'ollama' | 'openai' | 'claude') => {
+    if (p === 'ollama') return settings.ollamaUrl || 'Non configurato';
+    if (p === 'openai') return settings.openaiUrl || 'Non configurato';
+    return settings.claudeModel || 'Non configurato';
+  };
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
 
-      {/* Page header */}
       <View style={s.header}>
         <Ionicons name="settings" size={20} color={C.primary} />
         <Text style={s.h1}>{t.settingsTitle}</Text>
       </View>
 
       <ScrollView
-        contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]}
+        contentContainerStyle={[s.scroll, s.scrollTablet]}
         showsVerticalScrollIndicator={false}
       >
 
         {/* ── Language ── */}
         <Section title={t.sectionLanguage}>
-          <LangOption
-            code=""
-            label={t.langAuto}
-            flag="🌐"
-            current={currentLang}
-            onSelect={() => updateSettings({ language: '' })}
-          />
-          {LANGUAGES.map((lang, idx) => (
-            <LangOption
-              key={lang.code}
-              code={lang.code}
-              label={lang.label}
-              flag={lang.flag}
-              current={currentLang}
-              onSelect={() => updateSettings({ language: lang.code as Language })}
-              last={idx === LANGUAGES.length - 1}
-            />
-          ))}
+          <Pressable style={s.row} onPress={() => setLangModal(true)}>
+            <Text style={s.rowLabel}>{langLabel}</Text>
+            <Ionicons name="chevron-forward" size={16} color={C.muted} />
+          </Pressable>
         </Section>
 
         {/* ── Provider ── */}
-        <>
-            <Section title={t.sectionProvider}>
-              <ProviderOption
-                value="ollama"
-                current={settings.provider}
-                label="Ollama"
-                hint={t.providerOllamaHint}
-                onSelect={() => updateSettings({ provider: 'ollama' })}
-              />
-              <ProviderOption
-                value="openai"
-                current={settings.provider}
-                label="OpenAI API"
-                hint={t.providerOpenAiHint}
-                onSelect={() => updateSettings({ provider: 'openai' })}
-              />
-              <ProviderOption
-                value="claude"
-                current={settings.provider}
-                label="Claude API"
-                hint={t.providerClaudeHint}
-                onSelect={() => updateSettings({ provider: 'claude' })}
-                last
-              />
-            </Section>
-
-            {/* ── Ollama config ── */}
-            {settings.provider === 'ollama' ? (
-              <Section title={t.sectionOllama}>
-                <View style={s.inputGroup}>
-                  <Text style={s.inputLabel}>{t.ollamaUrlLabel}</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder={t.ollamaUrlPlaceholder}
-                    placeholderTextColor={C.faint}
-                    value={settings.ollamaUrl}
-                    onChangeText={(v) => updateSettings({ ollamaUrl: v })}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    returnKeyType="done"
-                  />
-                  <Text style={s.inputHint}>{t.ollamaUrlHint}</Text>
-                </View>
-                <View style={s.sectionDivider} />
-                <View style={s.inputGroup}>
-                  <Text style={s.inputLabel}>{t.ollamaModelLabel}</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder="gemma2:4b"
-                    placeholderTextColor={C.faint}
-                    value={settings.ollamaModel}
-                    onChangeText={(v) => updateSettings({ ollamaModel: v })}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                  />
-                  <Text style={s.inputHint}>{t.ollamaModelHint}</Text>
-                </View>
-              </Section>
-            ) : null}
-
-            {/* ── OpenAI config ── */}
-            {settings.provider === 'openai' ? (
-              <Section title={t.sectionOpenAi}>
-                <View style={s.inputGroup}>
-                  <Text style={s.inputLabel}>{t.openAiUrlLabel}</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder="https://api.openai.com/v1/chat/completions"
-                    placeholderTextColor={C.faint}
-                    value={settings.openaiUrl}
-                    onChangeText={(v) => updateSettings({ openaiUrl: v })}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    returnKeyType="done"
-                  />
-                </View>
-              </Section>
-            ) : null}
-
-            {/* ── Claude config ── */}
-            {settings.provider === 'claude' ? (
-              <Section title={t.sectionClaude}>
-                <View style={s.inputGroup}>
-                  <Text style={s.inputLabel}>{t.claudeUrlLabel}</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder="https://api.anthropic.com/v1"
-                    placeholderTextColor={C.faint}
-                    value={settings.claudeBaseUrl}
-                    onChangeText={(v) => updateSettings({ claudeBaseUrl: v })}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    returnKeyType="done"
-                  />
-                  <Text style={s.inputHint}>{t.claudeUrlHint}</Text>
-                </View>
-                <View style={s.sectionDivider} />
-                <View style={s.inputGroup}>
-                  <Text style={s.inputLabel}>{t.claudeKeyLabel}</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder="sk-ant-..."
-                    placeholderTextColor={C.faint}
-                    value={settings.claudeApiKey}
-                    onChangeText={(v) => updateSettings({ claudeApiKey: v })}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    secureTextEntry
-                    returnKeyType="done"
-                  />
-                </View>
-                <View style={s.sectionDivider} />
-                <View style={s.inputGroup}>
-                  <Text style={s.inputLabel}>{t.claudeModelLabel}</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder="claude-sonnet-4-20250514"
-                    placeholderTextColor={C.faint}
-                    value={settings.claudeModel}
-                    onChangeText={(v) => updateSettings({ claudeModel: v })}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                  />
-                </View>
-              </Section>
-            ) : null}
-        </>
+        <Section title={t.sectionProvider}>
+          <NavRow
+            label="Ollama"
+            hint={providerHint('ollama')}
+            active={settings.provider === 'ollama'}
+            onPress={() => router.push('/settings/ollama')}
+          />
+          <NavRow
+            label="OpenAI / Compatible"
+            hint={providerHint('openai')}
+            active={settings.provider === 'openai'}
+            onPress={() => router.push('/settings/openai')}
+          />
+          <NavRow
+            label="Claude"
+            hint={providerHint('claude')}
+            active={settings.provider === 'claude'}
+            last
+            onPress={() => router.push('/settings/claude')}
+          />
+        </Section>
 
         {/* ── Info ── */}
         <Section title={t.sectionInfo}>
-          <Row label={t.appVersionLabel} last>
+          <View style={s.row}>
+            <Text style={s.rowLabel}>{t.appVersionLabel}</Text>
             <Text style={s.valueText}>1.0.0</Text>
-          </Row>
+          </View>
         </Section>
 
-        {/* Security notice */}
-        <View style={[s.notice, isTablet && s.noticeTablet]}>
+        <View style={s.notice}>
           <Ionicons name="shield-checkmark-outline" size={16} color={C.faint} />
           <Text style={s.noticeText}>{t.securityNotice}</Text>
         </View>
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* ── Language picker modal ── */}
+      <Modal
+        visible={langModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLangModal(false)}
+      >
+        <Pressable style={s.modalOverlay} onPress={() => setLangModal(false)}>
+          <Pressable style={s.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={s.modalTitle}>{t.sectionLanguage}</Text>
+
+            {/* Auto */}
+            <Pressable
+              style={[s.langRow, currentLang === '' && s.langRowActive]}
+              onPress={() => { updateSettings({ language: '' }); setLangModal(false); }}
+            >
+              <Text style={s.langRowText}>🌐  Auto</Text>
+              {currentLang === '' && <Ionicons name="checkmark" size={18} color={C.primary} />}
+            </Pressable>
+
+            {LANGUAGES.map((lang) => (
+              <Pressable
+                key={lang.code}
+                style={[s.langRow, currentLang === lang.code && s.langRowActive]}
+                onPress={() => { updateSettings({ language: lang.code as Language }); setLangModal(false); }}
+              >
+                <Text style={s.langRowText}>{lang.flag}  {lang.label}</Text>
+                {currentLang === lang.code && <Ionicons name="checkmark" size={18} color={C.primary} />}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -341,11 +215,6 @@ const s = StyleSheet.create({
     borderColor: C.border,
     overflow: 'hidden',
   },
-  sectionDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: C.border,
-    marginHorizontal: 16,
-  },
 
   row: {
     flexDirection: 'row',
@@ -361,47 +230,15 @@ const s = StyleSheet.create({
   },
   rowLabels: { flex: 1, gap: 2 },
   rowLabel: { color: C.text, fontSize: 15, fontWeight: '500' },
-  rowLabelActive: { color: C.primary },
   rowHint: { color: C.muted, fontSize: 12, lineHeight: 17 },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.success,
+  },
   valueText: { color: C.muted, fontSize: 14 },
-
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  radioActive: { borderColor: C.primary },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary },
-
-  inputGroup: { padding: 16, gap: 8 },
-  inputLabel: {
-    color: C.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: C.bg,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: C.text,
-    fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  inputHint: { color: C.faint, fontSize: 11, lineHeight: 16 },
-  inputHintMono: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    color: C.muted,
-  },
 
   notice: {
     flexDirection: 'row',
@@ -414,5 +251,39 @@ const s = StyleSheet.create({
     alignItems: 'flex-start',
   },
   noticeText: { flex: 1, color: C.faint, fontSize: 12, lineHeight: 18 },
-  noticeTablet: { maxWidth: 560, alignSelf: 'center', width: '100%' },
+
+  /* Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: C.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 36,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 4,
+  },
+  modalTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.faint,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  langRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+  },
+  langRowActive: { backgroundColor: C.primary + '18' },
+  langRowText: { fontSize: 16, color: C.text },
 });

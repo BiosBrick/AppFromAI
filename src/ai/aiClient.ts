@@ -8,6 +8,8 @@ import { validateGeneratedModule } from '../modules/moduleValidator';
 export type AiClientOptions = {
   /** Se true, nessuna chiamata HTTP: solo mock euristici su keyword. */
   useMock: boolean;
+  /** Lingua UI da usare nei moduli generati (es. 'it', 'en', 'es'). Default 'it'. */
+  language?: string;
   /**
    * Se useMock è false e `ollamaBaseUrl` è valorizzato → usa Ollama `/api/chat`.
    * Altrimenti usa Claude Messages API oppure OpenAI-compatible (chat completions).
@@ -156,6 +158,7 @@ async function generateWithOllama(
   options?: {
     apiKey?: string;
     defaultModel?: string;
+    language?: string;
   }
 ): Promise<{ ok: true; data: GeneratedModulePayload } | { ok: false; error: string }> {
   const root = normalizeOllamaBase(baseUrl);
@@ -165,7 +168,7 @@ async function generateWithOllama(
   }
 
   const url = root.endsWith('/api') ? `${root}/chat` : `${root}/api/chat`;
-  const prompt = buildModuleGenerationPrompt(userPrompt);
+  const prompt = buildModuleGenerationPrompt(userPrompt, options?.language);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (options?.apiKey?.trim()) {
     headers.Authorization = `Bearer ${options.apiKey.trim()}`;
@@ -274,9 +277,10 @@ async function generateWithOpenAICompatible(
   apiModel = 'gpt-4o-mini',
   apiMaxTokens?: number,
   apiExtraBody?: Record<string, unknown>,
-  providerLabel: 'openai' | 'openai-compatible' = 'openai'
+  providerLabel: 'openai' | 'openai-compatible' = 'openai',
+  language?: string
 ): Promise<{ ok: true; data: GeneratedModulePayload } | { ok: false; error: string }> {
-  const prompt = buildModuleGenerationPrompt(userPrompt);
+  const prompt = buildModuleGenerationPrompt(userPrompt, language);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -412,7 +416,8 @@ async function generateWithClaude(
   baseUrl: string,
   apiKey: string | undefined,
   model = 'claude-sonnet-4-20250514',
-  providerLabel: 'claude' = 'claude'
+  providerLabel: 'claude' = 'claude',
+  language?: string
 ): Promise<{ ok: true; data: GeneratedModulePayload } | { ok: false; error: string }> {
   const key = apiKey?.trim();
   const trimmedBase = baseUrl.trim().replace(/\/+$/, '');
@@ -422,7 +427,7 @@ async function generateWithClaude(
   }
 
   const url = root.endsWith('/v1') ? joinUrl(root, 'messages') : joinUrl(root, 'v1/messages');
-  const prompt = buildModuleGenerationPrompt(userPrompt);
+  const prompt = buildModuleGenerationPrompt(userPrompt, language);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-api-key': key || 'ollama',
@@ -534,7 +539,7 @@ export async function generateModule(
 
   const ollamaUrl = opts.ollamaBaseUrl?.trim();
   if (ollamaUrl) {
-    return generateWithOllama(userPrompt, ollamaUrl, opts.ollamaModel?.trim() || 'gemma4e4');
+    return generateWithOllama(userPrompt, ollamaUrl, opts.ollamaModel?.trim() || 'gemma4e4', { language: opts.language });
   }
 
   if (opts.apiProvider === 'claude') {
@@ -542,7 +547,9 @@ export async function generateModule(
       userPrompt,
       opts.claudeBaseUrl?.trim() || 'https://api.anthropic.com/v1',
       opts.claudeApiKey,
-      opts.claudeModel || 'claude-sonnet-4-20250514'
+      opts.claudeModel || 'claude-sonnet-4-20250514',
+      'claude',
+      opts.language
     );
   }
 
@@ -554,7 +561,9 @@ export async function generateModule(
         opts.apiKey,
         opts.apiModel,
         opts.apiMaxTokens,
-        opts.apiExtraBody
+        opts.apiExtraBody,
+        'openai',
+        opts.language
       );
     } catch (e) {
       const err = e as Error & { code?: string };
