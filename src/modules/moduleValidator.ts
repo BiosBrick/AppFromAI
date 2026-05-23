@@ -44,6 +44,7 @@ function collectButtonActions(node: UiNode): string[] {
   }
   if (node.type === 'gameView') {
     const acts: string[] = [];
+
     if (node.tickAction) acts.push(node.tickAction);
     if (node.onTapAction) acts.push(node.onTapAction);
     if (node.onCollideAction) acts.push(node.onCollideAction);

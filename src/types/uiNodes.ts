@@ -169,6 +169,8 @@ export type UiNode =
       /** Nome dell'action chiamata allo swipe sul canvas; riceve { dir:'left'|'right'|'up'|'down', dx, dy }. */
       onSwipeAction?: string;
       layout?: UiLayoutProps;
+      onCollideAction?: string;
+      onOutOfBoundsAction?: string;
     };
 
 /** Oggetto della scena di gioco. I campi vx/vy/gravity abilitano fisica automatica nel renderer. */
