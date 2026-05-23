@@ -51,6 +51,47 @@ export async function deleteModule(id: string): Promise<void> {
   await writeAll(all);
 }
 
+export async function renameModule(id: string, newName: string): Promise<void> {
+  const trimmed = newName.trim();
+  if (!trimmed) return;
+  const all = await readAll();
+  const idx = all.findIndex((m) => m.id === id);
+  if (idx >= 0) {
+    all[idx] = { ...all[idx], name: trimmed };
+    await writeAll(all);
+  }
+}
+
+export async function replaceModule(
+  oldId: string,
+  payload: unknown,
+  prompt?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const v = validateGeneratedModule(payload);
+  if (!v.ok) return { ok: false, error: v.error };
+  const stored = { ...toStoredModule(v.module, prompt), id: oldId };
+  const all = await readAll();
+  const idx = all.findIndex((m) => m.id === oldId);
+  if (idx >= 0) {
+    all[idx] = stored;
+  } else {
+    all.push(stored);
+  }
+  await writeAll(all);
+  return { ok: true };
+}
+
+export async function updateModuleStyle(
+  id: string,
+  newUi: StoredModule['ui']
+): Promise<void> {
+  const all = await readAll();
+  const idx = all.findIndex((m) => m.id === id);
+  if (idx < 0) return;
+  all[idx] = { ...all[idx], ui: newUi };
+  await writeAll(all);
+}
+
 export async function upsertFromRawJson(json: string): Promise<{ ok: true } | { ok: false; error: string }> {
   let data: unknown;
   try {

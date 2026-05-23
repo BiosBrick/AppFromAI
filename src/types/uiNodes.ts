@@ -119,6 +119,14 @@ export type UiNode =
   | { type: 'audioRecorder'; id?: string; statusBind?: string; layout?: UiLayoutProps }
   | { type: 'qrScanner'; id?: string; hint?: string; layout?: UiLayoutProps }
   | {
+      /** Motore gioco WebView — canvas 2D + requestAnimationFrame 60fps nativi */
+      type: 'webGame';
+      id?: string;
+      width?: number;
+      height?: number;
+      layout?: UiLayoutProps;
+    }
+  | {
       type: 'gamepad';
       id?: string;
       /**
@@ -154,7 +162,9 @@ export type UiNode =
       tickMs?: number;
       /** Nome dell'action chiamata ad ogni tick del loop di gioco. */
       tickAction?: string;
-      /** Nome dell'action chiamata al tap sul canvas; riceve { x, y } nell'input. */
+      /** Nome dell'action chiamata al tap sul canvas; riceve { x, y, jump:-8 } nell'input. */
       onTapAction?: string;
+      /** Nome dell'action chiamata allo swipe sul canvas; riceve { dir:'left'|'right'|'up'|'down', dx, dy }. */
+      onSwipeAction?: string;
       layout?: UiLayoutProps;
     };

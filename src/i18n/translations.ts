@@ -79,6 +79,36 @@ export type Strings = {
   permAllow: string;
   permDeny: string;
 
+  // Generating modal
+  genModalBuilding: string;
+  genModalDone: string;
+  genStep1: string;
+  genStep2: string;
+  genStep3: string;
+  genHint: string;
+  genStepPending: string;
+  genStepActive: string;
+  genStepDone: string;
+
+  // Human-readable error messages (function receives raw error string)
+  humanizeError: (raw: string) => string;
+
+  // Style editor
+  styleEditorTitle: string;
+  styleEditorColors: string;
+  styleEditorTexts: string;
+  styleEditorSave: string;
+  styleEditorApply: string;
+  styleEditorNoEditable: string;
+
+  // Regenerate sheet
+  regenBtn: string;
+  regenSheetTitle: string;
+  regenOriginalLabel: string;
+  regenTweakLabel: string;
+  regenTweakPlaceholder: string;
+  regenSuccess: string;
+
   // Renderer
   rendererError: string;
   rendererRootError: string;
@@ -154,6 +184,58 @@ const it: Strings = {
   permAllow: 'Consenti e apri',
   permDeny: 'Nega accesso',
 
+  genModalBuilding: 'Stiamo costruendo la tua app…',
+  genModalDone: 'App creata!',
+  genStep1: 'Invio al modello',
+  genStep2: 'Elaborazione',
+  genStep3: 'Creazione',
+  genHint: 'Questo può richiedere 10–60 secondi a seconda del modello',
+  genStepPending: 'in attesa',
+  genStepActive: 'in corso…',
+  genStepDone: 'fatto',
+  humanizeError: (raw) => {
+    if (/kv.?cache|kv cache/i.test(raw))
+      return 'Il modello è sovraccarico: la richiesta è troppo lunga. Prova a descrivere l\'app in modo più breve.';
+    if (/HTTP 401|invalid.{0,20}api.{0,10}key|api.{0,10}key.{0,10}invalid|authentication/i.test(raw))
+      return 'API key non valida. Controlla la chiave nelle Impostazioni → provider.';
+    if (/HTTP 429|rate.?limit|quota/i.test(raw))
+      return 'Troppe richieste in poco tempo. Aspetta qualche secondo e riprova.';
+    if (/HTTP 5\d\d|internal server|bad gateway/i.test(raw))
+      return 'Il server AI ha avuto un problema temporaneo. Riprova tra qualche secondo.';
+    if (/ECONNREFUSED|ERR_NETWORK|Network Error|impossibile contattare|connection refused/i.test(raw))
+      return 'Impossibile raggiungere il server AI. Controlla la connessione e l\'URL nelle Impostazioni.';
+    if (/timeout|timed out/i.test(raw))
+      return 'Il modello ha impiegato troppo tempo. Prova con una richiesta più semplice o riprova tra poco.';
+    if (/modulo non valido|validazione schema/i.test(raw))
+      return 'Il modello non ha generato un\'app valida. Riprova riformulando la richiesta.';
+    if (/json|JSON/i.test(raw))
+      return 'Il modello ha risposto in modo non leggibile. Riprova — di solito funziona al secondo tentativo.';
+    if (/compilazione|JavaScript.*non valido|compile/i.test(raw))
+      return 'Il codice generato non è valido. Prova con una descrizione più semplice.';
+    if (/vuota|vuoto|empty/i.test(raw))
+      return 'Il modello ha risposto con un messaggio vuoto. Riprova.';
+    if (/URL.*non valido|url.{0,10}invalid/i.test(raw))
+      return 'L\'URL del server non è valido. Controlla le Impostazioni.';
+    if (/inserisci.*api.*key|api key.*mancante/i.test(raw))
+      return 'Manca la API key. Aggiungila nelle Impostazioni.';
+    const trimmed = raw.replace(/\s*\(prime \d+ char\).*$/s, '').trim();
+    return trimmed.length > 180 ? trimmed.slice(0, 177) + '…' : trimmed;
+  },
+
+  styleEditorTitle: 'Modifica stile',
+  styleEditorColors: 'COLORI',
+  styleEditorTexts: 'TESTI',
+  styleEditorSave: 'Salva modifiche',
+  styleEditorApply: 'Applica',
+  styleEditorNoEditable: 'Nessun elemento modificabile trovato in questo modulo.',
+
+  regenBtn: 'Rigenera',
+  regenSheetTitle: 'Rigenera modulo',
+  regenOriginalLabel: 'Prompt originale',
+  regenTweakLabel: 'Accorgimenti (opzionale)',
+  regenTweakPlaceholder: 'Es: aggiungi un timer, cambia i colori, aumenta la velocità…',
+  regenSuccess: 'Modulo aggiornato!',
+
   rendererError: 'Modulo non caricabile',
   rendererRootError: 'La radice UI deve essere screen o navigator.',
   back: 'Indietro',
@@ -227,6 +309,58 @@ const en: Strings = {
   permRequesting: 'Requesting system permissions…',
   permAllow: 'Allow and open',
   permDeny: 'Deny access',
+
+  genModalBuilding: 'Building your app…',
+  genModalDone: 'App created!',
+  genStep1: 'Sending to model',
+  genStep2: 'Processing',
+  genStep3: 'Creating',
+  genHint: 'This may take 10–60 seconds depending on the model',
+  genStepPending: 'waiting',
+  genStepActive: 'in progress…',
+  genStepDone: 'done',
+  humanizeError: (raw) => {
+    if (/kv.?cache|kv cache/i.test(raw))
+      return 'The model is overloaded: the request is too long. Try describing the app more briefly.';
+    if (/HTTP 401|invalid.{0,20}api.{0,10}key|api.{0,10}key.{0,10}invalid|authentication/i.test(raw))
+      return 'Invalid API key. Check the key in Settings → provider.';
+    if (/HTTP 429|rate.?limit|quota/i.test(raw))
+      return 'Too many requests. Wait a few seconds and try again.';
+    if (/HTTP 5\d\d|internal server|bad gateway/i.test(raw))
+      return 'The AI server had a temporary issue. Try again in a few seconds.';
+    if (/ECONNREFUSED|ERR_NETWORK|Network Error|connection refused/i.test(raw))
+      return 'Cannot reach the AI server. Check your connection and the URL in Settings.';
+    if (/timeout|timed out/i.test(raw))
+      return 'The model took too long. Try a simpler request or retry shortly.';
+    if (/modulo non valido|validazione schema/i.test(raw))
+      return 'The model did not generate a valid app. Try rephrasing the request.';
+    if (/json|JSON/i.test(raw))
+      return 'The model responded in an unreadable format. Retry — it usually works on the second try.';
+    if (/compilazione|JavaScript.*non valido|compile/i.test(raw))
+      return 'The generated code is not valid. Try a simpler description.';
+    if (/empty/i.test(raw))
+      return 'The model returned an empty response. Please retry.';
+    if (/URL.*non valido|url.{0,10}invalid/i.test(raw))
+      return 'The server URL is invalid. Check Settings.';
+    if (/inserisci.*api.*key|api key.*mancante/i.test(raw))
+      return 'API key is missing. Add it in Settings.';
+    const trimmed = raw.replace(/\s*\(prime \d+ char\).*$/s, '').trim();
+    return trimmed.length > 180 ? trimmed.slice(0, 177) + '…' : trimmed;
+  },
+
+  styleEditorTitle: 'Edit style',
+  styleEditorColors: 'COLOURS',
+  styleEditorTexts: 'TEXTS',
+  styleEditorSave: 'Save changes',
+  styleEditorApply: 'Apply',
+  styleEditorNoEditable: 'No editable elements found in this module.',
+
+  regenBtn: 'Regenerate',
+  regenSheetTitle: 'Regenerate module',
+  regenOriginalLabel: 'Original prompt',
+  regenTweakLabel: 'Tweaks (optional)',
+  regenTweakPlaceholder: 'E.g.: add a timer, change colours, increase speed…',
+  regenSuccess: 'Module updated!',
 
   rendererError: 'Module could not load',
   rendererRootError: 'UI root must be screen or navigator.',
@@ -302,6 +436,58 @@ const es: Strings = {
   permAllow: 'Permitir y abrir',
   permDeny: 'Denegar acceso',
 
+  genModalBuilding: 'Construyendo tu app…',
+  genModalDone: '¡App creada!',
+  genStep1: 'Enviando al modelo',
+  genStep2: 'Procesamiento',
+  genStep3: 'Creación',
+  genHint: 'Esto puede tardar 10–60 segundos según el modelo',
+  genStepPending: 'en espera',
+  genStepActive: 'en curso…',
+  genStepDone: 'hecho',
+  humanizeError: (raw) => {
+    if (/kv.?cache|kv cache/i.test(raw))
+      return 'El modelo está sobrecargado: la solicitud es demasiado larga. Intenta describir la app más brevemente.';
+    if (/HTTP 401|invalid.{0,20}api.{0,10}key|api.{0,10}key.{0,10}invalid|authentication/i.test(raw))
+      return 'Clave API no válida. Revísala en Ajustes → proveedor.';
+    if (/HTTP 429|rate.?limit|quota/i.test(raw))
+      return 'Demasiadas solicitudes. Espera unos segundos y vuelve a intentarlo.';
+    if (/HTTP 5\d\d|internal server|bad gateway/i.test(raw))
+      return 'El servidor de IA tuvo un problema temporal. Inténtalo de nuevo en unos segundos.';
+    if (/ECONNREFUSED|ERR_NETWORK|Network Error|connection refused/i.test(raw))
+      return 'No se puede conectar con el servidor de IA. Revisa la conexión y la URL en Ajustes.';
+    if (/timeout|timed out/i.test(raw))
+      return 'El modelo tardó demasiado. Prueba con una solicitud más simple o inténtalo de nuevo.';
+    if (/modulo non valido|validazione schema/i.test(raw))
+      return 'El modelo no generó una app válida. Reformula la solicitud.';
+    if (/json|JSON/i.test(raw))
+      return 'El modelo respondió en un formato ilegible. Reintenta — normalmente funciona al segundo intento.';
+    if (/compilazione|JavaScript.*non valido|compile/i.test(raw))
+      return 'El código generado no es válido. Prueba con una descripción más simple.';
+    if (/empty/i.test(raw))
+      return 'El modelo respondió con un mensaje vacío. Inténtalo de nuevo.';
+    if (/URL.*non valido|url.{0,10}invalid/i.test(raw))
+      return 'La URL del servidor no es válida. Revisa los Ajustes.';
+    if (/inserisci.*api.*key|api key.*mancante/i.test(raw))
+      return 'Falta la clave API. Añádela en Ajustes.';
+    const trimmed = raw.replace(/\s*\(prime \d+ char\).*$/s, '').trim();
+    return trimmed.length > 180 ? trimmed.slice(0, 177) + '…' : trimmed;
+  },
+
+  styleEditorTitle: 'Editar estilo',
+  styleEditorColors: 'COLORES',
+  styleEditorTexts: 'TEXTOS',
+  styleEditorSave: 'Guardar cambios',
+  styleEditorApply: 'Aplicar',
+  styleEditorNoEditable: 'No se encontraron elementos editables en este módulo.',
+
+  regenBtn: 'Regenerar',
+  regenSheetTitle: 'Regenerar módulo',
+  regenOriginalLabel: 'Prompt original',
+  regenTweakLabel: 'Ajustes (opcional)',
+  regenTweakPlaceholder: 'Ej: añade un temporizador, cambia los colores, aumenta la velocidad…',
+  regenSuccess: '¡Módulo actualizado!',
+
   rendererError: 'El módulo no pudo cargarse',
   rendererRootError: 'La raíz de la UI debe ser screen o navigator.',
   back: 'Atrás',
@@ -376,6 +562,58 @@ const fr: Strings = {
   permAllow: 'Autoriser et ouvrir',
   permDeny: 'Refuser l\'accès',
 
+  genModalBuilding: 'Construction de ton app…',
+  genModalDone: 'App créée !',
+  genStep1: 'Envoi au modèle',
+  genStep2: 'Traitement',
+  genStep3: 'Création',
+  genHint: 'Cela peut prendre 10–60 secondes selon le modèle',
+  genStepPending: 'en attente',
+  genStepActive: 'en cours…',
+  genStepDone: 'fait',
+  humanizeError: (raw) => {
+    if (/kv.?cache|kv cache/i.test(raw))
+      return 'Le modèle est surchargé : la requête est trop longue. Essaie de décrire l\'app plus brièvement.';
+    if (/HTTP 401|invalid.{0,20}api.{0,10}key|api.{0,10}key.{0,10}invalid|authentication/i.test(raw))
+      return 'Clé API invalide. Vérifie-la dans Réglages → fournisseur.';
+    if (/HTTP 429|rate.?limit|quota/i.test(raw))
+      return 'Trop de requêtes. Attends quelques secondes et réessaie.';
+    if (/HTTP 5\d\d|internal server|bad gateway/i.test(raw))
+      return 'Le serveur IA a eu un problème temporaire. Réessaie dans quelques secondes.';
+    if (/ECONNREFUSED|ERR_NETWORK|Network Error|connection refused/i.test(raw))
+      return 'Impossible de joindre le serveur IA. Vérifie la connexion et l\'URL dans les Réglages.';
+    if (/timeout|timed out/i.test(raw))
+      return 'Le modèle a mis trop de temps. Essaie avec une requête plus simple ou réessaie.';
+    if (/modulo non valido|validazione schema/i.test(raw))
+      return 'Le modèle n\'a pas généré une app valide. Reformule la demande.';
+    if (/json|JSON/i.test(raw))
+      return 'Le modèle a répondu dans un format illisible. Réessaie — ça marche généralement au deuxième essai.';
+    if (/compilazione|JavaScript.*non valido|compile/i.test(raw))
+      return 'Le code généré n\'est pas valide. Essaie une description plus simple.';
+    if (/empty/i.test(raw))
+      return 'Le modèle a renvoyé une réponse vide. Réessaie.';
+    if (/URL.*non valido|url.{0,10}invalid/i.test(raw))
+      return 'L\'URL du serveur n\'est pas valide. Vérifie les Réglages.';
+    if (/inserisci.*api.*key|api key.*mancante/i.test(raw))
+      return 'La clé API est manquante. Ajoute-la dans les Réglages.';
+    const trimmed = raw.replace(/\s*\(prime \d+ char\).*$/s, '').trim();
+    return trimmed.length > 180 ? trimmed.slice(0, 177) + '…' : trimmed;
+  },
+
+  styleEditorTitle: 'Modifier le style',
+  styleEditorColors: 'COULEURS',
+  styleEditorTexts: 'TEXTES',
+  styleEditorSave: 'Enregistrer',
+  styleEditorApply: 'Appliquer',
+  styleEditorNoEditable: 'Aucun élément modifiable trouvé dans ce module.',
+
+  regenBtn: 'Regénérer',
+  regenSheetTitle: 'Regénérer le module',
+  regenOriginalLabel: 'Prompt original',
+  regenTweakLabel: 'Ajustements (optionnel)',
+  regenTweakPlaceholder: 'Ex : ajoute un minuteur, change les couleurs, augmente la vitesse…',
+  regenSuccess: 'Module mis à jour !',
+
   rendererError: 'Impossible de charger le module',
   rendererRootError: 'La racine UI doit être screen ou navigator.',
   back: 'Retour',
@@ -449,6 +687,58 @@ const de: Strings = {
   permRequesting: 'Systemberechtigungen werden angefordert…',
   permAllow: 'Erlauben und öffnen',
   permDeny: 'Zugriff verweigern',
+
+  genModalBuilding: 'Deine App wird erstellt…',
+  genModalDone: 'App erstellt!',
+  genStep1: 'Senden an Modell',
+  genStep2: 'Verarbeitung',
+  genStep3: 'Erstellung',
+  genHint: 'Dies kann je nach Modell 10–60 Sekunden dauern',
+  genStepPending: 'wartend',
+  genStepActive: 'läuft…',
+  genStepDone: 'fertig',
+  humanizeError: (raw) => {
+    if (/kv.?cache|kv cache/i.test(raw))
+      return 'Das Modell ist überlastet: die Anfrage ist zu lang. Versuche die App kürzer zu beschreiben.';
+    if (/HTTP 401|invalid.{0,20}api.{0,10}key|api.{0,10}key.{0,10}invalid|authentication/i.test(raw))
+      return 'Ungültiger API-Schlüssel. Überprüfe ihn in Einstellungen → Anbieter.';
+    if (/HTTP 429|rate.?limit|quota/i.test(raw))
+      return 'Zu viele Anfragen. Warte einige Sekunden und versuche es erneut.';
+    if (/HTTP 5\d\d|internal server|bad gateway/i.test(raw))
+      return 'Der KI-Server hatte ein vorübergehendes Problem. Versuche es in einigen Sekunden erneut.';
+    if (/ECONNREFUSED|ERR_NETWORK|Network Error|connection refused/i.test(raw))
+      return 'Der KI-Server ist nicht erreichbar. Überprüfe die Verbindung und die URL in den Einstellungen.';
+    if (/timeout|timed out/i.test(raw))
+      return 'Das Modell hat zu lange gebraucht. Versuche eine einfachere Anfrage oder probiere es erneut.';
+    if (/modulo non valido|validazione schema/i.test(raw))
+      return 'Das Modell hat keine gültige App generiert. Formuliere die Anfrage neu.';
+    if (/json|JSON/i.test(raw))
+      return 'Das Modell hat in einem unlesbaren Format geantwortet. Versuche es erneut — beim zweiten Versuch klappt es meist.';
+    if (/compilazione|JavaScript.*non valido|compile/i.test(raw))
+      return 'Der generierte Code ist ungültig. Versuche eine einfachere Beschreibung.';
+    if (/empty/i.test(raw))
+      return 'Das Modell hat eine leere Antwort gesendet. Bitte erneut versuchen.';
+    if (/URL.*non valido|url.{0,10}invalid/i.test(raw))
+      return 'Die Server-URL ist ungültig. Überprüfe die Einstellungen.';
+    if (/inserisci.*api.*key|api key.*mancante/i.test(raw))
+      return 'API-Schlüssel fehlt. Füge ihn in den Einstellungen hinzu.';
+    const trimmed = raw.replace(/\s*\(prime \d+ char\).*$/s, '').trim();
+    return trimmed.length > 180 ? trimmed.slice(0, 177) + '…' : trimmed;
+  },
+
+  styleEditorTitle: 'Stil bearbeiten',
+  styleEditorColors: 'FARBEN',
+  styleEditorTexts: 'TEXTE',
+  styleEditorSave: 'Änderungen speichern',
+  styleEditorApply: 'Anwenden',
+  styleEditorNoEditable: 'Keine bearbeitbaren Elemente in diesem Modul gefunden.',
+
+  regenBtn: 'Neu generieren',
+  regenSheetTitle: 'Modul neu generieren',
+  regenOriginalLabel: 'Originaler Prompt',
+  regenTweakLabel: 'Anpassungen (optional)',
+  regenTweakPlaceholder: 'Z.B.: Timer hinzufügen, Farben ändern, Geschwindigkeit erhöhen…',
+  regenSuccess: 'Modul aktualisiert!',
 
   rendererError: 'Modul konnte nicht geladen werden',
   rendererRootError: 'UI-Wurzel muss screen oder navigator sein.',

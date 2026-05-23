@@ -202,6 +202,14 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
       .extend({ layout: uiLayoutPropsSchema.optional() }),
     z
       .object({
+        type: z.literal('webGame'),
+        id: z.string().optional(),
+        width: z.number().optional(),
+        height: z.number().optional(),
+      })
+      .extend({ layout: uiLayoutPropsSchema.optional() }),
+    z
+      .object({
         type: z.literal('gamepad'),
         id: z.string().optional(),
         direction: z.enum(['row', 'dpad', 'split']).optional(),
@@ -228,6 +236,7 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
         tickMs: z.number().optional(),
         tickAction: z.string().optional(),
         onTapAction: z.string().optional(),
+        onSwipeAction: z.string().optional(),
       })
       .extend({ layout: uiLayoutPropsSchema.optional() }),
   ]);

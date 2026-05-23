@@ -4,11 +4,12 @@ import { getDefaultOllamaBaseUrl, getDefaultOllamaModel } from '../config';
 const KEY = 'afi:settings:v1';
 
 export type AppSettings = {
-  useMock: boolean;
   provider: 'ollama' | 'openai' | 'claude';
   ollamaUrl: string;
   ollamaModel: string;
   openaiUrl: string;
+  openaiKey: string;
+  openaiModel: string;
   claudeBaseUrl: string;
   claudeApiKey: string;
   claudeModel: string;
@@ -18,11 +19,12 @@ export type AppSettings = {
 
 export function defaultSettings(): AppSettings {
   return {
-    useMock: false,
     provider: 'ollama',
     ollamaUrl: getDefaultOllamaBaseUrl(),
     ollamaModel: getDefaultOllamaModel(),
     openaiUrl: '',
+    openaiKey: '',
+    openaiModel: 'gpt-4o-mini',
     claudeBaseUrl: 'https://api.anthropic.com/v1',
     claudeApiKey: '',
     claudeModel: 'claude-sonnet-4-20250514',
