@@ -254,7 +254,7 @@ export default function ModuleScreen() {
           busy={gateBusy}
         />
       ) : motherApi ? (
-        <View style={styles.body}>
+        <View style={[styles.body, isTablet && styles.bodyTablet]}>
           <DynamicRenderer ui={mod.ui} code={mod.code} motherApi={motherApi} />
         </View>
       ) : null}
