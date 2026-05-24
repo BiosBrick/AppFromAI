@@ -3,11 +3,11 @@ import {
   type GeneratedModulePayload,
   type StoredModule,
 } from '../types/generatedModule';
-import type { UiNode } from '../types/uiNodes';
+import type { NavigatorScreen, UiNode } from '../types/uiNodes';
 import { formatZodError, normalizeGeneratedModuleRaw } from '../ai/normalizeGeneratedModule';
 import { reportGenAppError } from '../debug/genAppDebug';
 import { scanGeneratedCode } from '../security/codeScanner';
-import { tryCompileModuleActions } from './moduleRunner';
+import { tryCompileModuleActions, type CompiledActions } from './moduleRunner';
 
 function hasWebGameNode(node: UiNode): boolean {
   if (node.type === 'webGame') return true;
@@ -32,6 +32,10 @@ function looksLikeWebGameCode(code: string): boolean {
 function collectButtonActions(node: UiNode): string[] {
   // Se il button ha navigate, l'action è opzionale e non va validata
   if (node.type === 'button') return node.action && !node.navigate ? [node.action] : [];
+  if (node.type === 'screen' && node.onInit) {
+    const childActions = node.components.flatMap(collectButtonActions);
+    return [node.onInit, ...childActions];
+  }
   if (node.type === 'navigator') {
     return Object.values(node.screens).flatMap((s) => {
       const childActions = s.components.flatMap(collectButtonActions);
@@ -41,6 +45,9 @@ function collectButtonActions(node: UiNode): string[] {
   }
   if (node.type === 'gamepad') {
     return node.buttons.map((b) => b.action).filter(Boolean);
+  }
+  if (node.type === 'ticker') {
+    return node.tickAction ? [node.tickAction] : [];
   }
   if (node.type === 'gameView') {
     const acts: string[] = [];
@@ -105,6 +112,80 @@ function fixUiForWebGame(ui: UiNode): UiNode {
   return ui;
 }
 
+// ─── Auto-inject onFocus / onInit ────────────────────────────────────────────
+// Se l'AI genera una screen con lista ma senza onFocus/onInit, lo inietta
+// automaticamente trovando l'action di caricamento più adatta tra quelle compilate.
+
+function collectListBinds(components: UiNode[]): string[] {
+  const binds: string[] = [];
+  for (const c of components) {
+    if (c.type === 'list' && c.bind) binds.push(c.bind);
+    if ('components' in c && Array.isArray(c.components)) {
+      binds.push(...collectListBinds(c.components));
+    }
+  }
+  return binds;
+}
+
+function hasListComponents(components: UiNode[]): boolean {
+  return collectListBinds(components).length > 0;
+}
+
+function pickLoadAction(binds: string[], actionNames: string[]): string | null {
+  const loadNames = actionNames.filter((a) => /^(load|init|fetch|get)/i.test(a));
+  if (loadNames.length === 0) return null;
+  // Preferenza: action il cui nome contiene uno dei bind (es. loadExercises per bind "exercises")
+  for (const bind of binds) {
+    const match = loadNames.find((a) => a.toLowerCase().includes(bind.toLowerCase()));
+    if (match) return match;
+  }
+  // Fallback: prima action di caricamento trovata
+  return loadNames[0];
+}
+
+function autoInjectLoadActions(ui: UiNode, actions: CompiledActions): UiNode {
+  const actionNames = Object.keys(actions);
+  console.log('[AutoInject] action names disponibili:', actionNames);
+
+  // Screen singola: inietta onInit se mancante
+  if (ui.type === 'screen' && !ui.onInit && hasListComponents(ui.components)) {
+    const binds = collectListBinds(ui.components);
+    const action = pickLoadAction(binds, actionNames);
+    console.log('[AutoInject] screen singola — binds:', binds, '→ action scelta:', action);
+    if (action) {
+      reportGenAppError('moduleValidator.autoInject', new Error(`onInit auto-injected: ${action}`), { binds });
+      return { ...ui, onInit: action };
+    }
+  }
+
+  // Navigator: inietta onFocus su ogni screen con lista ma senza onFocus
+  if (ui.type === 'navigator') {
+    let changed = false;
+    const screens: Record<string, NavigatorScreen> = {};
+    for (const [key, screen] of Object.entries(ui.screens)) {
+      const hasLists = hasListComponents(screen.components);
+      console.log(`[AutoInject] screen "${key}" — hasLists: ${hasLists}, onFocus esistente: ${screen.onFocus ?? 'nessuno'}`);
+      if (!screen.onFocus && hasLists) {
+        const binds = collectListBinds(screen.components);
+        const action = pickLoadAction(binds, actionNames);
+        console.log(`[AutoInject] screen "${key}" — binds: ${binds.join(',')}, action scelta: ${action}`);
+        if (action) {
+          reportGenAppError('moduleValidator.autoInject', new Error(`onFocus auto-injected on "${key}": ${action}`), { binds });
+          screens[key] = { ...screen, onFocus: action };
+          changed = true;
+          continue;
+        }
+      }
+      screens[key] = screen;
+    }
+    if (changed) return { ...ui, screens };
+  }
+
+  return ui;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type ValidateResult =
   | { ok: true; module: GeneratedModulePayload }
   | { ok: false; error: string };
@@ -153,7 +234,11 @@ export function validateGeneratedModule(raw: unknown): ValidateResult {
       });
       return { ok: false, error: compileResult.error };
     }
-    const uiActions = [...new Set(collectButtonActions(parsed.data.ui))];
+
+    // Auto-inietta onFocus/onInit se l'AI li ha omessi su screen con liste
+    const fixedUi = autoInjectLoadActions(parsed.data.ui, compileResult.actions);
+
+    const uiActions = [...new Set(collectButtonActions(fixedUi))];
     const missing = uiActions.filter((a) => !(a in compileResult.actions));
     if (missing.length > 0) {
       const err = `Azioni nell'UI non trovate nel codice: ${missing.join(', ')}. Rigenerare il modulo.`;
@@ -162,6 +247,10 @@ export function validateGeneratedModule(raw: unknown): ValidateResult {
         compiledActions: Object.keys(compileResult.actions),
       });
       return { ok: false, error: err };
+    }
+
+    if (fixedUi !== parsed.data.ui) {
+      return { ok: true, module: { ...parsed.data, ui: fixedUi } };
     }
   }
 

@@ -19,6 +19,8 @@ const FORBIDDEN_PATTERNS: { name: string; re: RegExp }[] = [
   { name: 'global', re: /\bglobalThis\b|\bglobal\b/ },
   { name: 'child_process', re: /child_process/ },
   { name: 'Linking diretto', re: /\bLinking\s*\./ },
+  { name: 'setTimeout (usa ticker)', re: /\bsetTimeout\s*\(/ },
+  { name: 'setInterval (usa ticker)', re: /\bsetInterval\s*\(/ },
   { name: '__dirname', re: /\b__dirname\b/ },
   { name: '__filename', re: /\b__filename\b/ },
   { name: 'fs access', re: /\bfs\.\b|node:fs|react-native-fs|expo-file-system\/FileSystem\b/ },

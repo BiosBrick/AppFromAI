@@ -4,7 +4,7 @@ import { getDefaultOllamaBaseUrl, getDefaultOllamaModel } from '../config';
 const KEY = 'afi:settings:v1';
 
 export type AppSettings = {
-  provider: 'ollama' | 'openai' | 'claude';
+  provider: 'ollama' | 'openai' | 'claude' | 'local';
   ollamaUrl: string;
   ollamaModel: string;
   openaiUrl: string;
@@ -13,6 +13,8 @@ export type AppSettings = {
   claudeBaseUrl: string;
   claudeApiKey: string;
   claudeModel: string;
+  /** ID of the local LiteRT-LM model currently loaded (Android only) */
+  localModelId: string;
   /** '' = auto-detect from system locale */
   language: string;
 };
@@ -28,6 +30,7 @@ export function defaultSettings(): AppSettings {
     claudeBaseUrl: 'https://api.anthropic.com/v1',
     claudeApiKey: '',
     claudeModel: 'claude-sonnet-4-20250514',
+    localModelId: '',
     language: '',
   };
 }
@@ -38,7 +41,7 @@ export async function loadSettings(): Promise<AppSettings> {
     if (raw) {
       const loaded = { ...defaultSettings(), ...(JSON.parse(raw) as Partial<AppSettings>) };
       // Se il provider salvato è uno rimosso, resetta a ollama
-      if (!['ollama', 'openai', 'claude'].includes(loaded.provider)) {
+      if (!['ollama', 'openai', 'claude', 'local'].includes(loaded.provider)) {
         loaded.provider = 'ollama';
       }
       return loaded;

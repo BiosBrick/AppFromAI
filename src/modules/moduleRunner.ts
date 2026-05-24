@@ -71,12 +71,14 @@ function stripJsComments(code: string): string {
 }
 
 /**
- * Trasforma la sintassi shorthand async dei metodi in forma esplicita.
- * Hermes new Function può avere problemi con `async name(args) {` dentro object literal.
- * `async clear(api, input, state) {` → `clear: async function(api, input, state) {`
+ * Hermes new Function does not support async functions or await expressions
+ * in any form (arrow, method shorthand, or async function keyword).
+ * Generated actions are synchronous by design — strip both keywords.
  */
-function normalizeAsyncMethods(code: string): string {
-  return code.replace(/\basync (?!function\b)(\w+)\s*\(/g, '$1: async function(');
+function stripAsyncAndAwait(code: string): string {
+  return code
+    .replace(/\basync\s+/g, '')
+    .replace(/\bawait\s+/g, '');
 }
 
 /**
@@ -192,13 +194,133 @@ function countUnclosedBraces(code: string): number {
   return depth;
 }
 
+/**
+ * Repairs model hallucinations that produce invalid JS constructs.
+ * Applied before new Function() so Hermes never sees the broken syntax.
+ */
+function fixModelHallucinations(code: string): string {
+  let s = code;
+
+  // Fix 1: Double-nested member expression `arr[arr[expr]` → `arr[expr`
+  // e.g. `pipes[pipes[pipes.length-1].x` → `pipes[pipes.length-1].x`
+  s = s.replace(/(\w+)\[\1\[/g, '$1[');
+
+  // Fix 2: Semicolon instead of comma between object literal methods.
+  // Model sometimes writes `};\n  nextMethod:` instead of `},\n  nextMethod:`.
+  // Only applies when the token after whitespace looks like an object property (word:).
+  s = s.replace(/\};\s*\n(\s+[\w$][\w$]*\s*:)/g, '},\n$1');
+
+  return s;
+}
+
+/**
+ * Balances unclosed parentheses on single-statement lines (lines ending with `;`).
+ * The model occasionally drops the outer `)` of nested calls, e.g.:
+ *   `const y = parseFloat(String(state.y ?? '240');`  ← missing ) for parseFloat
+ * is repaired to:
+ *   `const y = parseFloat(String(state.y ?? '240'));`
+ */
+function balanceParenthesesPerLine(code: string): string {
+  return code.split('\n').map(line => {
+    const trimmed = line.trimEnd();
+    if (!trimmed.endsWith(';')) return line;
+
+    let depth = 0;
+    let inStr = false;
+    let strChar = '';
+    let escaped = false;
+
+    for (const c of trimmed) {
+      if (escaped) { escaped = false; continue; }
+      if (inStr) {
+        if (c === '\\') { escaped = true; continue; }
+        if (c === strChar) inStr = false;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') { inStr = true; strChar = c; continue; }
+      if (c === '(') depth++;
+      if (c === ')') depth--;
+    }
+
+    if (depth > 0) {
+      const semiPos = line.lastIndexOf(';');
+      return line.slice(0, semiPos) + ')'.repeat(depth) + line.slice(semiPos);
+    }
+    return line;
+  }).join('\n');
+}
+
+/**
+ * Inserts missing `]` before any `}` that would leave open square brackets unclosed.
+ * The model frequently writes `scene:[{...},{...}` and then `};` without closing `]`.
+ * This is a character-by-character pass that tracks bracket depth and auto-inserts `]`
+ * before a `}` when the top of the bracket stack is `[`.
+ */
+function fixUnclosedArraysInObjects(code: string): string {
+  const out: string[] = [];
+  const stack: string[] = [];
+  let inStr = false;
+  let strChar = '';
+  let escaped = false;
+
+  for (let i = 0; i < code.length; i++) {
+    const c = code[i];
+
+    if (escaped) { out.push(c); escaped = false; continue; }
+    if (inStr) {
+      if (c === '\\') { out.push(c); escaped = true; continue; }
+      if (c === strChar) inStr = false;
+      out.push(c);
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      inStr = true; strChar = c; out.push(c); continue;
+    }
+
+    if (c === '{' || c === '[' || c === '(') {
+      stack.push(c);
+      out.push(c);
+    } else if (c === '}') {
+      // Close all unclosed [ and ( before accepting this }
+      while (stack.length && stack[stack.length - 1] !== '{') {
+        const top = stack.pop()!;
+        out.push(top === '[' ? ']' : ')');
+      }
+      if (stack.length) stack.pop();
+      out.push(c);
+    } else if (c === ']') {
+      // Pop matching [ if present; if top is { it means model closed array before object - skip
+      if (stack.length && stack[stack.length - 1] === '[') stack.pop();
+      out.push(c);
+    } else if (c === ')') {
+      if (stack.length && stack[stack.length - 1] === '(') stack.pop();
+      out.push(c);
+    } else {
+      out.push(c);
+    }
+  }
+
+  // Close any remaining open brackets at end of code
+  while (stack.length) {
+    const top = stack.pop()!;
+    if (top === '[') out.push(']');
+    else if (top === '{') out.push('}');
+    else if (top === '(') out.push(')');
+  }
+
+  return out.join('');
+}
+
 /** Passaggio finale prima di `new Function`. */
 export function finalizeModuleCodeForVm(code: string): string {
   let s = sanitizeModuleCodeSource(code);
   s = unwrapJsonEncodedCodeString(s);
   s = stripTypescriptNoiseFromJs(s);
   s = stripJsComments(s);
-  s = normalizeAsyncMethods(s);
+  s = stripAsyncAndAwait(s);
+  s = fixModelHallucinations(s);
+  s = balanceParenthesesPerLine(s);
+  s = fixUnclosedArraysInObjects(s);
   return sanitizeModuleCodeSource(s);
 }
 
@@ -224,6 +346,29 @@ function buildModuleCodeCandidates(raw: string): string[] {
   for (const b of bases) {
     add(out, b);
     if (!b.trim().endsWith(';')) add(out, `${b};`);
+
+    // Handle module.exports=({...} — model wraps the object in () but forgets the closing ).
+    // Stripping the ( gives module.exports={...} which is valid JS.
+    const exportParenPattern = /^(module\.exports\s*=\s*)\((.+)$/s;
+    const parenMatch = b.match(exportParenPattern);
+    if (parenMatch) {
+      let inner = parenMatch[2];
+      if (inner.endsWith(')')) inner = inner.slice(0, -1); // remove trailing ) if present
+      const withoutParen = `${parenMatch[1]}${inner}`;
+      add(out, withoutParen);
+      add(out, `${withoutParen};`);
+    }
+
+    // Strip stray ) or ); after a balanced object: module.exports={...}); → module.exports={...}
+    // countUnclosedBraces returns 0 (braces balanced) so this case is never caught by the
+    // missing-brace logic below. Add explicit candidates with the trailing junk removed.
+    if (/\}\s*\)\s*;?\s*$/.test(b)) {
+      const stripped = b.replace(/\)\s*;?\s*$/, '').trim();
+      if (stripped !== b) {
+        add(out, stripped);
+        add(out, `${stripped};`);
+      }
+    }
 
     const missing = countUnclosedBraces(b);
     if (missing > 0) {

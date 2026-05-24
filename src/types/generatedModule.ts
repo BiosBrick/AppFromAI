@@ -98,6 +98,7 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
       gap: z.number().optional(),
       padding: z.number().optional(),
       theme: uiThemeSchema.optional(),
+      onInit: z.string().optional(),
     }),
     z
       .object({
@@ -226,6 +227,14 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
         buttonSize: z.number().optional(),
       })
       .extend({ layout: uiLayoutPropsSchema.optional() }),
+    z
+      .object({
+        type: z.literal('ticker'),
+        id: z.string().optional(),
+        tickMs: z.number().min(100),
+        tickAction: z.string(),
+        running: z.string().optional(),
+      }),
     z
       .object({
         type: z.literal('gameView'),

@@ -11,6 +11,7 @@ export default function RootLayout() {
       <Fragment>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="local-models" options={{ headerShown: false }} />
           <Stack.Screen
             name="module/[id]"
             options={{

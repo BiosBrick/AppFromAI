@@ -60,6 +60,11 @@ export type Strings = {
   claudeUrlHint: string;
   claudeKeyLabel: string;
   claudeModelLabel: string;
+  providerLocalHint: string;
+  sectionLocalModel: string;
+  localModelManage: string;
+  localModelNone: string;
+  localModelAndroidOnly: string;
   sectionInfo: string;
   appVersionLabel: string;
   securityNotice: string;
@@ -167,6 +172,11 @@ const it: Strings = {
   claudeUrlHint: 'Verrà usato l\'endpoint /messages',
   claudeKeyLabel: 'API key',
   claudeModelLabel: 'Modello',
+  providerLocalHint: 'LLM direttamente sul dispositivo Android (LiteRT-LM)',
+  sectionLocalModel: 'Modello locale',
+  localModelManage: 'Gestisci modelli →',
+  localModelNone: 'Nessun modello caricato',
+  localModelAndroidOnly: 'Disponibile solo su Android',
   sectionInfo: 'Informazioni',
   appVersionLabel: 'Versione app',
   securityNotice: 'Il codice dei moduli è validato e gira in ambiente controllato. Nessun accesso diretto a rete, storage o hardware senza il tuo consenso esplicito.',
@@ -293,6 +303,11 @@ const en: Strings = {
   claudeUrlHint: 'The /messages endpoint will be used',
   claudeKeyLabel: 'API key',
   claudeModelLabel: 'Model',
+  providerLocalHint: 'LLM directly on-device, Android (LiteRT-LM)',
+  sectionLocalModel: 'Local model',
+  localModelManage: 'Manage models →',
+  localModelNone: 'No model loaded',
+  localModelAndroidOnly: 'Available on Android only',
   sectionInfo: 'Information',
   appVersionLabel: 'App version',
   securityNotice: 'Module code is validated and runs in a controlled environment. No direct access to network, storage or hardware without your explicit consent.',
@@ -419,6 +434,11 @@ const es: Strings = {
   claudeUrlHint: 'Se usará el endpoint /messages',
   claudeKeyLabel: 'Clave API',
   claudeModelLabel: 'Modelo',
+  providerLocalHint: 'LLM directamente en el dispositivo Android (LiteRT-LM)',
+  sectionLocalModel: 'Modelo local',
+  localModelManage: 'Gestionar modelos →',
+  localModelNone: 'Ningún modelo cargado',
+  localModelAndroidOnly: 'Disponible solo en Android',
   sectionInfo: 'Información',
   appVersionLabel: 'Versión de la app',
   securityNotice: 'El código de los módulos es validado y se ejecuta en entorno controlado. Sin acceso directo a red, almacenamiento o hardware sin tu consentimiento.',
@@ -545,6 +565,11 @@ const fr: Strings = {
   claudeUrlHint: 'L\'endpoint /messages sera utilisé',
   claudeKeyLabel: 'Clé API',
   claudeModelLabel: 'Modèle',
+  providerLocalHint: 'LLM directement sur l\'appareil Android (LiteRT-LM)',
+  sectionLocalModel: 'Modèle local',
+  localModelManage: 'Gérer les modèles →',
+  localModelNone: 'Aucun modèle chargé',
+  localModelAndroidOnly: 'Disponible sur Android uniquement',
   sectionInfo: 'Informations',
   appVersionLabel: 'Version de l\'app',
   securityNotice: 'Le code des modules est validé et s\'exécute dans un environnement contrôlé. Aucun accès direct au réseau, stockage ou matériel sans ton consentement explicite.',
@@ -671,6 +696,11 @@ const de: Strings = {
   claudeUrlHint: 'Der /messages-Endpunkt wird verwendet',
   claudeKeyLabel: 'API-Schlüssel',
   claudeModelLabel: 'Modell',
+  providerLocalHint: 'LLM direkt auf dem Android-Gerät (LiteRT-LM)',
+  sectionLocalModel: 'Lokales Modell',
+  localModelManage: 'Modelle verwalten →',
+  localModelNone: 'Kein Modell geladen',
+  localModelAndroidOnly: 'Nur auf Android verfügbar',
   sectionInfo: 'Informationen',
   appVersionLabel: 'App-Version',
   securityNotice: 'Der Modulcode wird validiert und in einer kontrollierten Umgebung ausgeführt. Kein direkter Zugriff auf Netzwerk, Speicher oder Hardware ohne deine ausdrückliche Zustimmung.',

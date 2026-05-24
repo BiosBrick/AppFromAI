@@ -369,6 +369,50 @@ function GamepadNode({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Ticker — nodo invisibile che chiama un'action a intervalli regolari.
+// Usare per timer, countdown, polling. Nessun rendering.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TickerNode({
+  node,
+  ctx,
+}: {
+  node: Extract<UiNode, { type: 'ticker' }>;
+  ctx: RenderCtx;
+}) {
+  const onButtonRef = useRef(ctx.onButton);
+  onButtonRef.current = ctx.onButton;
+  // stateRef aggiornato ad ogni render — evita stale closure dentro setInterval
+  const stateRef = useRef(ctx.state);
+  stateRef.current = ctx.state;
+  const busyRef = useRef(false);
+  const lastRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (ctx.hasError) return;
+    const ms = Math.max(100, node.tickMs);
+
+    const runTick = () => {
+      if (node.running != null && !stateRef.current[node.running]) return;
+      if (busyRef.current) return;
+      busyRef.current = true;
+      const now = Date.now();
+      const dt = (now - lastRef.current) / 1000;
+      lastRef.current = now;
+      onButtonRef.current(node.tickAction, { dt, dtMs: Math.round(dt * 1000) }).finally(() => {
+        busyRef.current = false;
+      });
+    };
+
+    const id = setInterval(runTick, ms);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.hasError, node.tickAction, node.tickMs, node.running]);
+
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GameView 3.0 — Skia GPU-powered 2D game engine
 //
 // Scene object types:
@@ -1159,6 +1203,9 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
           </Text>
         </View>
       );
+
+    case 'ticker':
+      return <TickerNode key={key} node={node} ctx={ctx} />;
 
     case 'webGame':
       return <WebGameNode key={key} node={node} ctx={ctx} nodeKey={key} />;

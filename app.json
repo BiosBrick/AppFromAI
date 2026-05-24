@@ -32,6 +32,7 @@
       "bundleIdentifier": "com.afi.appfromai"
     },
     "android": {
+      "minSdkVersion": 31,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -55,6 +56,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withLocalLlm",
       "expo-router",
       [
         "expo-camera",

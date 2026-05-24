@@ -161,8 +161,16 @@ function normalizeUiNode(node: unknown, path: string): unknown {
 
   if (type === 'button') {
     const hasNavigate = typeof n.navigate === 'string' && !!n.navigate;
-    // I bottoni navigate non richiedono action: non aggiungere 'onPress' di default.
-    if (!hasNavigate && (typeof n.action !== 'string' || !n.action)) n.action = 'onPress';
+    // Derive a meaningful action name from the button text instead of defaulting to 'onPress'
+    // (which would cause action mismatch since generated code never has an "onPress" action).
+    const deriveAction = (text: unknown): string => {
+      if (typeof text !== 'string' || !text.trim()) return 'doAction';
+      return text.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 20) || 'doAction';
+    };
+    const isReactHandler = typeof n.action === 'string' && /^(on|handle)[A-Z]/.test(n.action);
+    if (!hasNavigate && (typeof n.action !== 'string' || !n.action || isReactHandler)) {
+      n.action = deriveAction(n.text);
+    }
     if (typeof n.text !== 'string') n.text = 'OK';
     if (typeof n.id !== 'string' || !n.id) {
       const idBase =

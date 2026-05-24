@@ -70,6 +70,8 @@ export type UiNode =
       gap?: number;
       padding?: number;
       theme?: UiTheme;
+      /** Action chiamata automaticamente al mount del modulo (equivalente di onFocus per screen singola). */
+      onInit?: string;
     }
   | { type: 'text'; id?: string; text?: string; bind?: string; layout?: UiLayoutProps; style?: UiStyleProps }
   | {
@@ -150,6 +152,24 @@ export type UiNode =
       /** Dimensione dei tasti in px (default 64). */
       buttonSize?: number;
       layout?: UiLayoutProps;
+    }
+  | {
+      /**
+       * Nodo invisibile che chiama un'action a intervalli regolari.
+       * Usarlo per timer, countdown, polling, animazioni su componenti normali.
+       * Il ticker si ferma automaticamente quando il modulo viene smontato.
+       */
+      type: 'ticker';
+      id?: string;
+      /** Millisecondi tra un tick e l'altro (min 100ms). */
+      tickMs: number;
+      /** Nome dell'action chiamata ad ogni tick. */
+      tickAction: string;
+      /**
+       * Chiave di stato booleana opzionale che controlla l'esecuzione.
+       * Se presente e false/0/''/null, il ticker si ferma. Se assente, gira sempre.
+       */
+      running?: string;
     }
   | {
       type: 'gameView';

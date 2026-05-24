@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getJsonResponseRetryHint } from '../ai/modulePromptExternal';
 import type { MotherApi } from '../capabilities/types';
 import type { NavigatorScreen, UiNode } from '../types/uiNodes';
 import { reportGenAppError } from '../debug/genAppDebug';
@@ -8,20 +9,12 @@ import { runAction, tryCompileModuleActions, type CompiledActions } from '../mod
 import { renderNode, resolveTheme, type ResolvedTheme } from './components';
 import { useI18n } from '../i18n/useI18n';
 
-function hasWebGameNode(node: UiNode): boolean {
-  if (node.type === 'webGame') return true;
-  if (node.type === 'navigator') return Object.values(node.screens).some((s) => s.components.some(hasWebGameNode));
-  if ('components' in node && Array.isArray(node.components)) return node.components.some(hasWebGameNode);
-  return false;
-}
-
-// Same patterns as looksLikeWebGameCode in moduleValidator — kept in sync as fallback
-// for modules saved before the validator fix was deployed.
-const WEBGAME_CODE_RE =
-  /requestAnimationFrame\s*\(|canvas\.addEventListener\s*\(|document\.getElementById\s*\(|ctx\s*\.\s*(fillRect|drawImage|clearRect|beginPath|arc|stroke)\s*\(/;
-
 function collectButtonActions(node: UiNode): string[] {
   if (node.type === 'button') return node.action && !node.navigate ? [node.action] : [];
+  if (node.type === 'screen' && node.onInit) {
+    const childActions = node.components.flatMap((c) => collectButtonActions(c));
+    return [node.onInit, ...childActions];
+  }
   if (node.type === 'navigator') {
     return Object.values(node.screens).flatMap((s) => {
       const childActions = s.components.flatMap((c) => collectButtonActions(c));
@@ -31,12 +24,13 @@ function collectButtonActions(node: UiNode): string[] {
   if (node.type === 'gamepad') {
     return node.buttons.map((b) => b.action).filter(Boolean);
   }
+  if (node.type === 'ticker') {
+    return node.tickAction ? [node.tickAction] : [];
+  }
   if (node.type === 'gameView') {
     const acts: string[] = [];
     if (node.tickAction) acts.push(node.tickAction);
     if (node.onTapAction) acts.push(node.onTapAction);
-    if (node.onCollideAction) acts.push(node.onCollideAction);
-    if (node.onOutOfBoundsAction) acts.push(node.onOutOfBoundsAction);
     return acts;
   }
   if ('components' in node && Array.isArray(node.components)) {
@@ -97,16 +91,9 @@ type Props = {
 
 export function DynamicRenderer({ ui, code, motherApi }: Props) {
   const { t } = useI18n();
-  const isWebGame = useMemo(() => hasWebGameNode(ui) || WEBGAME_CODE_RE.test(code), [ui, code]);
-
-  // WebGame modules: code runs inside WebView, skip sandbox compilation
-  const compiled = useMemo(
-    () => isWebGame ? { ok: true as const, actions: {} } : tryCompileModuleActions(code),
-    [code, isWebGame]
-  );
+  const compiled = useMemo(() => tryCompileModuleActions(code), [code]);
 
   const compileError = useMemo(() => {
-    if (isWebGame) return null; // WebGame: no sandbox, no action check
     if (!compiled.ok) return compiled.error;
     const uiActions = [...new Set(collectButtonActions(ui))];
     const missing = uiActions.filter((a) => !(a in compiled.actions));
@@ -114,7 +101,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
       return `Azioni nell'UI non trovate nel codice: ${missing.join(', ')}. Elimina il modulo e rigeneralo.`;
     }
     return null;
-  }, [compiled, ui, isWebGame]);
+  }, [compiled, ui]);
 
   const actions: CompiledActions | null = compiled.ok ? compiled.actions : null;
   const [state, setState] = useState<Record<string, unknown>>(() => buildInitialState(ui));
@@ -132,10 +119,19 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
   const canGoBack = screenStack.length > 1;
 
   const onNavigate = useCallback((target: string) => {
+    console.log('[Navigator] onNavigate called, target:', target);
     if (target === '__back') {
-      setScreenStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+      setScreenStack((s) => {
+        const next = s.length > 1 ? s.slice(0, -1) : s;
+        console.log('[Navigator] back, stack:', next);
+        return next;
+      });
     } else {
-      setScreenStack((s) => [...s, target]);
+      setScreenStack((s) => {
+        const next = [...s, target];
+        console.log('[Navigator] push, stack:', next);
+        return next;
+      });
     }
   }, []);
 
@@ -143,6 +139,10 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
     (patch: Record<string, unknown>) => {
       const { __navigate, ...rest } = patch as Record<string, unknown> & { __navigate?: unknown };
       if (typeof __navigate === 'string') {
+        console.log('[patchState] __navigate:', __navigate, '| isNavigator:', isNavigator);
+        if (!isNavigator) {
+          console.warn('[patchState] __navigate ignorato: il root UI è "screen", non "navigator". Genera il modulo con type:"navigator" e le schermate in "screens".');
+        }
         onNavigate(__navigate);
       }
       if (Object.keys(rest).length > 0) {
@@ -165,7 +165,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
         const delta = await runAction(actions, actionName, motherApi, input, stateRef.current);
         if (delta && typeof delta === 'object') patchState(delta as Record<string, unknown>);
       } catch (e) {
-        setError('Azione non riuscita, riprova.');
+        setError((e as Error).message ?? 'Errore sconosciuto');
         reportGenAppError('DynamicRenderer.action', e, { action: actionName });
       } finally {
         setBusyAction(null);
@@ -174,15 +174,12 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
     [actions, motherApi, patchState]
   );
 
-  // ── onFocus: chiama automaticamente l'action della schermata ogni volta che diventa attiva ──
-  // Si scatena sia al mount iniziale sia ad ogni navigazione verso questa schermata.
+  // ── onInit: per screen singola (non navigator) — carica dati dallo storage al mount ──
   useEffect(() => {
-    if (!isNavigator || ui.type !== 'navigator') return;
+    if (isNavigator || ui.type !== 'screen') return;
     if (!actions) return;
-    const screen = ui.screens[currentScreenKey];
-    if (!screen?.onFocus) return;
-    const actionName = screen.onFocus;
-    if (!(actionName in actions)) return;
+    const actionName = ui.onInit;
+    if (!actionName || !(actionName in actions)) return;
 
     let cancelled = false;
     setBusyAction(actionName);
@@ -193,7 +190,40 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
       })
       .catch((e) => {
         if (cancelled) return;
-        setError('Errore durante il caricamento della schermata.');
+        setError((e as Error).message ?? 'Errore onInit');
+        reportGenAppError('DynamicRenderer.onInit', e, { action: actionName });
+      })
+      .finally(() => { if (!cancelled) setBusyAction(null); });
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── onFocus: chiama automaticamente l'action della schermata ogni volta che diventa attiva ──
+  // Si scatena sia al mount iniziale sia ad ogni navigazione verso questa schermata.
+  useEffect(() => {
+    console.log('[onFocus] effect triggered — currentScreenKey:', currentScreenKey, '| isNavigator:', isNavigator);
+    if (!isNavigator || ui.type !== 'navigator') { console.log('[onFocus] skip: not navigator'); return; }
+    if (!actions) { console.log('[onFocus] skip: no actions'); return; }
+    const screen = ui.screens[currentScreenKey];
+    console.log('[onFocus] screen:', currentScreenKey, '| onFocus:', screen?.onFocus ?? 'nessuno');
+    if (!screen?.onFocus) return;
+    const actionName = screen.onFocus;
+    if (!(actionName in actions)) { console.log('[onFocus] skip: action', actionName, 'non trovata in', Object.keys(actions)); return; }
+
+    console.log('[onFocus] running action:', actionName);
+    let cancelled = false;
+    setBusyAction(actionName);
+    runAction(actions, actionName, motherApi, {}, stateRef.current)
+      .then((delta) => {
+        if (cancelled) return;
+        console.log('[onFocus] action', actionName, 'delta:', JSON.stringify(delta).slice(0, 300));
+        if (delta && typeof delta === 'object') patchState(delta as Record<string, unknown>);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.log('[onFocus] action', actionName, 'ERRORE:', (e as Error).message);
+        setError((e as Error).message ?? 'Errore onFocus');
         reportGenAppError('DynamicRenderer.onFocus', e, { action: actionName, screen: currentScreenKey });
       })
       .finally(() => {
@@ -208,6 +238,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
     return (
       <View style={styles.errBox}>
         <Text style={styles.errTitle}>{t.rendererError}</Text>
+        <Text style={styles.errHint}>{getJsonResponseRetryHint()}</Text>
         <Text style={styles.errText}>{compileError}</Text>
       </View>
     );
@@ -235,7 +266,7 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
     theme = resolveTheme();
   }
 
-  const ctx = { state, setState: patchState, onButton, onNavigate, busyAction, theme, hasError: Boolean(error), webgameCode: isWebGame ? code : undefined };
+  const ctx = { state, setState: patchState, onButton, onNavigate, busyAction, theme, hasError: Boolean(error) };
 
   // ── Which node to render ──
   const nodeToRender: UiNode | null =
@@ -256,13 +287,10 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
       )}
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {isWebGame && !hasWebGameNode(ui)
-          ? renderNode({ type: 'webGame' as const, id: 'game', width: 360, height: 600 }, ctx, 'root')
-          : nodeToRender
-          ? renderNode(nodeToRender, ctx, isNavigator ? currentScreenKey : 'root')
-          : null}
+        {nodeToRender ? renderNode(nodeToRender, ctx, isNavigator ? currentScreenKey : 'root') : null}
         {error ? (
           <View style={styles.errBox}>
+            <Text style={styles.errHint}>{getJsonResponseRetryHint()}</Text>
             <Text style={styles.errText}>{error}</Text>
           </View>
         ) : null}
