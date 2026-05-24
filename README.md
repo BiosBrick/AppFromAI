@@ -20,8 +20,7 @@ No code. No cloud. No waiting.
 [![Android](https://img.shields.io/badge/Android-tested-3ddc84?style=flat-square&logo=android)](https://www.android.com)
 [![iOS](https://img.shields.io/badge/iOS-not%20yet%20tested-lightgrey?style=flat-square&logo=apple)](https://www.apple.com/ios)
 
-
-<a href="https://www.producthunt.com/products/appfromai?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-appfromai-2" target="_blank" rel="noopener noreferrer"><img alt="AppFromAI - Write a sentence Generate an AI app module for iOS &amp; Android | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1149098&amp;theme=light&amp;t=1779629527598"></a>
+<a href="https://www.producthunt.com/products/appfromai?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-appfromai-2" target="_blank" rel="noopener noreferrer"><img alt="AppFromAI - Write a sentence Generate an AI app module for iOS &amp; Android | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1149098&amp;theme=dark&amp;t=1779629599380"></a>
 
 </div>
 
