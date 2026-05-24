@@ -136,13 +136,18 @@ Rispondi SOLO con un oggetto JSON valido. Nessun markdown, nessun testo extra.
 La radice deve avere ESATTAMENTE queste chiavi: "manifest", "ui", "code".
 
 Schema obbligatorio:
-{"manifest":{"id":"id-minuscolo","name":"Nome","version":"1.0.0","runtime":"javascript","permissions":[],"entry":"logic.js","ui":"ui.json"},"ui":{"type":"screen","title":"Nome","components":[{"type":"gameView","id":"game","bind":"scene","width":320,"height":420,"tickMs":60,"tickAction":"onTick","onTapAction":"onTap"}]},"code":"module.exports={actions:{async onTick(api,input,state){return{scene:[]};},async onTap(api,input,state){return{};}}};"  }
+{"manifest":{"id":"id-minuscolo","name":"Nome","version":"1.0.0","runtime":"javascript","permissions":[],"entry":"logic.js","ui":"ui.json"},"ui":{"type":"screen","title":"Nome","gap":0,"theme":{"bg":"#000"},"components":[{"type":"webGame","id":"game","width":360,"height":600}]},"code":"GameKit.startPlatformer({gravityY:0.65,width:WIDTH,height:HEIGHT,controls:{speed:3.2,jumpPower:12},levels:[{name:'Livello 1',player:{id:'player',x:30,y:470,w:26,h:32},goal:{x:310,y:486,w:30,h:46},bodies:[{id:'floor',x:0,y:552,w:360,h:48,static:true},{id:'coin1',tag:'coin',sensor:true,static:true,solid:false,type:'circle',x:150,y:510,r:8,color:'#facc15'}]},{name:'Livello 2',player:{id:'player',x:30,y:470,w:26,h:32},goal:{x:315,y:390,w:28,h:52},bodies:[{id:'floor',x:0,y:552,w:360,h:48,static:true},{id:'p1',x:120,y:472,w:80,h:18,static:true},{id:'hazard',tag:'hazard',sensor:true,static:true,solid:false,x:230,y:536,w:44,h:16,color:'#ef4444'}]}]});"  }
 
-Regole critiche per gameView:
-- onTick MAX 10 righe. Usa Math.min/Math.max per bounds, MAI if chains ripetuti.
+Regole critiche per webGame:
+- Il code è browser JavaScript, NON module.exports. Usa requestAnimationFrame.
+- Per giochi platform/action usa GameKit.startPlatformer: include fisica, collisioni, livelli, HUD, transizioni, particelle, score e restart.
 - Non usare mai link Markdown nel code: scrivi state.x non [state.x](http://state.x).
-- Le action sono sorelle dentro actions separate da virgola.
 - Il code è UNA stringa JSON (tutti i \\n e \\" escaped se necessario).
+
+Regole critiche per timer/countdown:
+- Nei moduli normali NON usare setInterval/setTimeout nel code.
+- Aggiungi in UI { "type":"timer","id":"mainTimer","tickAction":"tick","intervalMs":1000,"activeBind":"running","autoStart":false }.
+- Start/pausa/reset sono button action che impostano running e valori numerici; tick restituisce il patch di stato.
 
 Inizio risposta precedente:
 ${previousContent.slice(0, 400)}

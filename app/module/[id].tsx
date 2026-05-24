@@ -116,6 +116,15 @@ export default function ModuleScreen() {
     });
   }, [mod, grantedIds, registry]);
 
+  const webGameAllowNetwork = useMemo(() => {
+    if (!mod) return false;
+    return (
+      isModuleNetworkFetchEnabled() &&
+      mod.manifest.permissions.includes('network') &&
+      grantedIds.includes('network')
+    );
+  }, [mod, grantedIds]);
+
   // ── Regen handler ─────────────────────────────────────────────────────────
   const onRegenConfirm = async () => {
     if (!mod || !id) return;
@@ -258,7 +267,12 @@ export default function ModuleScreen() {
         />
       ) : motherApi ? (
         <View style={[styles.body, isTablet && styles.bodyTablet]}>
-          <DynamicRenderer ui={mod.ui} code={mod.code} motherApi={motherApi} />
+          <DynamicRenderer
+            ui={mod.ui}
+            code={mod.code}
+            motherApi={motherApi}
+            webGameAllowNetwork={webGameAllowNetwork}
+          />
         </View>
       ) : null}
 

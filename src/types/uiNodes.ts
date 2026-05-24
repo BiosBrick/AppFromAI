@@ -119,6 +119,21 @@ export type UiNode =
   | { type: 'audioRecorder'; id?: string; statusBind?: string; layout?: UiLayoutProps }
   | { type: 'qrScanner'; id?: string; hint?: string; layout?: UiLayoutProps }
   | {
+      /** Ticker gestito dall'host: chiama tickAction a intervalli regolari. Non renderizza UI visibile. */
+      type: 'timer';
+      id?: string;
+      tickAction: string;
+      /** Millisecondi tra un tick e l'altro. Default 1000, minimo 100. */
+      intervalMs?: number;
+      /** Se true, esegue un tick appena il timer diventa attivo. */
+      runImmediately?: boolean;
+      /** Se presente, il timer gira solo quando state[activeBind] è truthy. */
+      activeBind?: string;
+      /** Senza activeBind default true; con activeBind inizializza quel bind a true solo se autoStart è true. */
+      autoStart?: boolean;
+      layout?: UiLayoutProps;
+    }
+  | {
       /** Motore gioco WebView — canvas 2D + requestAnimationFrame 60fps nativi */
       type: 'webGame';
       id?: string;

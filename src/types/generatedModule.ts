@@ -202,6 +202,17 @@ export const uiNodeSchema: ZodType<UiNode> = z.lazy(() => {
       .extend({ layout: uiLayoutPropsSchema.optional() }),
     z
       .object({
+        type: z.literal('timer'),
+        id: z.string().optional(),
+        tickAction: z.string(),
+        intervalMs: z.number().optional(),
+        runImmediately: z.boolean().optional(),
+        activeBind: z.string().optional(),
+        autoStart: z.boolean().optional(),
+      })
+      .extend({ layout: uiLayoutPropsSchema.optional() }),
+    z
+      .object({
         type: z.literal('webGame'),
         id: z.string().optional(),
         width: z.number().optional(),

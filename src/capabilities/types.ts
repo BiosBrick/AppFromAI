@@ -5,7 +5,7 @@ export type TorchCapability = {
 
 export type MotherApi = {
   camera: {
-    takePhoto: () => Promise<{ uri: string; width?: number; height?: number } | null>;
+    takePhoto: () => Promise<{ uri: string; fileUri?: string; width?: number; height?: number } | null>;
   };
   audioRecorder: {
     start: () => Promise<void>;

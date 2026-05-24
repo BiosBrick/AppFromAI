@@ -121,6 +121,8 @@ export type RenderCtx = {
   hasError: boolean;
   /** Codice raw del modulo webGame (browser JS con canvas 2D) */
   webgameCode?: string;
+  /** Enables browser-side network APIs for webGame only after app-level permission checks. */
+  webGameAllowNetwork?: boolean;
   /** Ref al WebView per inviare eventi gamepad */
   webViewRef?: React.RefObject<WebView | null>;
 };
@@ -748,9 +750,212 @@ function GameViewNode({
 // WebGameNode — canvas 2D inside WebView at true 60fps, no sandbox overhead
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildWebGameHtml(code: string, width: number, height: number): string {
+function buildWebGameHtml(code: string, width: number, height: number, allowNetwork: boolean): string {
   // Only escape </script> to prevent premature script tag closing
   const safeCode = code.replace(/<\/script>/gi, '<\\/script>');
+  const gameKitRuntime = `
+/* GameKit: small host-provided physics + levels helper for generated canvas games. */
+(function(){
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+  function copy(src){var o={},k;if(!src)return o;for(k in src){if(Object.prototype.hasOwnProperty.call(src,k))o[k]=src[k];}return o;}
+  function bounds(b){
+    var w=b.w||((b.r||0)*2)||0,h=b.h||((b.r||0)*2)||0,x=b.x||0,y=b.y||0;
+    var inset=Number(b.hitboxInset||0),scale=b.hitboxScale==null?1:Number(b.hitboxScale);
+    if(scale>0&&scale<1){var nw=w*scale,nh=h*scale;x+=(w-nw)/2;y+=(h-nh)/2;w=nw;h=nh;}
+    if(inset>0){x+=inset;y+=inset;w=Math.max(1,w-inset*2);h=Math.max(1,h-inset*2);}
+    return{x:x,y:y,w:w,h:h};
+  }
+  function rectsOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+  function circleRectOverlap(c,r){
+    var radius=(c.hitR||c.r||Math.min(c.w||20,c.h||20)/2)*(c.hitboxScale==null?1:Number(c.hitboxScale));
+    var cx=(c.x||0)+(c.r||((c.w||20)/2)),cy=(c.y||0)+(c.r||((c.h||20)/2));
+    var rb=bounds(r),nx=clamp(cx,rb.x,rb.x+rb.w),ny=clamp(cy,rb.y,rb.y+rb.h),dx=cx-nx,dy=cy-ny;
+    return dx*dx+dy*dy<=radius*radius;
+  }
+  function bodiesOverlap(a,b){
+    if(a.type==='circle'&&b.type!=='circle')return circleRectOverlap(a,b);
+    if(b.type==='circle'&&a.type!=='circle')return circleRectOverlap(b,a);
+    return rectsOverlap(bounds(a),bounds(b));
+  }
+  function centerX(b){var bb=bounds(b);return bb.x+bb.w/2;}
+  function centerY(b){var bb=bounds(b);return bb.y+bb.h/2;}
+  function drawBody(ctx,b){
+    ctx.fillStyle=b.color||'#fff';
+    if(b.type==='circle'){ctx.beginPath();ctx.arc((b.x||0)+(b.r||0),(b.y||0)+(b.r||0),b.r||8,0,Math.PI*2);ctx.fill();return;}
+    ctx.fillRect(b.x||0,b.y||0,b.w||20,b.h||20);
+  }
+  function drawBackdrop(ctx,w,h,bg){
+    var g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,bg||'#0f172a');g.addColorStop(1,'#020617');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    ctx.globalAlpha=0.28;ctx.fillStyle='#38bdf8';
+    for(var i=0;i<5;i++){ctx.beginPath();ctx.arc((i*91+40)%w,70+i*38,18+i*4,0,Math.PI*2);ctx.fill();}
+    ctx.globalAlpha=1;
+  }
+  function roundRect(ctx,x,y,w,h,r){
+    r=Math.min(r||8,w/2,h/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+  }
+  function drawTextPill(ctx,text,x,y,w){
+    ctx.fillStyle='rgba(15,23,42,0.72)';roundRect(ctx,x,y,w,32,10);ctx.fill();
+    ctx.fillStyle='#e5e7eb';ctx.font='bold 14px sans-serif';ctx.textAlign='left';ctx.fillText(text,x+10,y+21);
+  }
+  function create(opts){
+    opts=opts||{};
+    var world={
+      width:opts.width||window.WIDTH||360,
+      height:opts.height||window.HEIGHT||600,
+      gravityY:opts.gravityY==null?0.65:Number(opts.gravityY),
+      bodies:[],
+      levels:[],
+      levelIndex:0,
+      levelName:'',
+      completed:false,
+      status:'playing',
+      message:'',
+      transition:1,
+      particles:[],
+      shake:0,
+      combo:0,
+      background:opts.background||'#0f172a',
+      score:0,
+      input:{left:false,right:false,up:false,down:false,jump:false,fire:false},
+      clear:function(){this.bodies=[];this.completed=false;this.status='playing';},
+      add:function(body){
+        var b=copy(body);
+        b.id=b.id||('body'+this.bodies.length);
+        b.type=b.type||'rect';
+        b.x=Number(b.x||0);b.y=Number(b.y||0);
+        b.w=Number(b.w||(b.r?b.r*2:24));b.h=Number(b.h||(b.r?b.r*2:24));
+        b.vx=Number(b.vx||0);b.vy=Number(b.vy||0);
+        b.bounce=Number(b.bounce||0);b.friction=b.friction==null?0.82:Number(b.friction);
+        b.gravityScale=b.gravityScale==null?1:Number(b.gravityScale);
+        b.static=!!b.static;b.solid=b.solid!==false;b.sensor=!!b.sensor;
+        b.opacity=b.opacity==null?1:Number(b.opacity);
+        this.bodies.push(b);return b;
+      },
+      get:function(id){for(var i=0;i<this.bodies.length;i++){if(this.bodies[i].id===id)return this.bodies[i];}return null;},
+      setLevels:function(levels){this.levels=Array.isArray(levels)?levels:[];this.loadLevel(0);return this;},
+      loadLevel:function(index){
+        if(!this.levels.length)return false;
+        this.clear();
+        this.levelIndex=clamp(index,0,this.levels.length-1);
+        var level=this.levels[this.levelIndex]||{};
+        this.levelName=level.name||('Livello '+(this.levelIndex+1));
+        this.message=this.levelName;
+        this.transition=1;
+        this.shake=0;
+        this.background=level.background||this.background;
+        this.score=level.keepScore?this.score:Number(level.score||this.score||0);
+        this.gravityY=level.gravityY==null?this.gravityY:Number(level.gravityY);
+        var bodies=Array.isArray(level.bodies)?level.bodies:[];
+        for(var i=0;i<bodies.length;i++)this.add(bodies[i]);
+        if(level.player)this.add(Object.assign({id:'player',tag:'player',color:'#60a5fa'},level.player));
+        if(level.goal)this.add(Object.assign({id:'goal',tag:'goal',sensor:true,static:true,solid:false,color:'#22c55e'},level.goal));
+        return true;
+      },
+      nextLevel:function(){
+        if(this.levelIndex>=this.levels.length-1){this.completed=true;this.status='completed';this.message='Completato';this.emit(this.width/2,this.height/2,'#facc15',34);return false;}
+        return this.loadLevel(this.levelIndex+1);
+      },
+      restartLevel:function(){return this.loadLevel(this.levelIndex);},
+      fail:function(msg){if(this.status!=='playing')return;this.status='failed';this.message=msg||'Riprova';this.shakeScreen(10);},
+      completeLevel:function(msg){var self=this;if(this.status!=='playing')return;this.status='levelComplete';this.message=msg||'Livello completato';this.emit(this.width/2,this.height/2,'#22c55e',26);this.shakeScreen(5);setTimeout(function(){if(self.status==='levelComplete')self.nextLevel();},650);},
+      shakeScreen:function(power){this.shake=Math.max(this.shake,Number(power||6));},
+      emit:function(x,y,color,count){
+        count=count||16;color=color||'#fff';
+        for(var i=0;i<count;i++){var a=Math.random()*Math.PI*2,s=1+Math.random()*4;this.particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,life:28+Math.random()*20,color:color,r:2+Math.random()*3});}
+      },
+      overlap:function(a,b){return bodiesOverlap(a,b);},
+      touchesTag:function(body,tag){
+        if(!body)return false;
+        for(var i=0;i<this.bodies.length;i++){var b=this.bodies[i];if(b!==body&&b.tag===tag&&this.overlap(body,b))return true;}
+        return false;
+      },
+      step:function(dt){
+        this.transition=Math.max(0,this.transition-0.035);
+        this.shake=Math.max(0,this.shake*0.88-0.15);
+        var scale=clamp((dt||1/60)*60,0,3),i,j,a,b,ab,bb,px,py,ox,oy,fromTop;
+        for(i=0;i<this.bodies.length;i++){
+          a=this.bodies[i];a.onGround=false;
+          if(a.static)continue;
+          a.vy+=(this.gravityY*a.gravityScale)*scale;
+          px=a.x;py=a.y;
+          a.x+=a.vx*scale;a.y+=a.vy*scale;
+          for(j=0;j<this.bodies.length;j++){
+            b=this.bodies[j];if(a===b||!this.overlap(a,b))continue;
+            if(a.onCollide)a.onCollide(b,this);
+            if(b.onCollide)b.onCollide(a,this);
+            if(b.sensor&&b.tag==='coin'&&a.tag==='player'){b.dead=true;this.score+=Number(b.value||1);this.combo++;this.emit(centerX(b),centerY(b),b.color||'#facc15',10);}
+            if(b.tag==='hazard'&&a.tag==='player')this.fail('Game over');
+            if(a.sensor||b.sensor||!b.solid)continue;
+            ab=bounds(a);bb=bounds(b);
+            ox=Math.min(ab.x+ab.w-bb.x,bb.x+bb.w-ab.x);
+            oy=Math.min(ab.y+ab.h-bb.y,bb.y+bb.h-ab.y);
+            if(ox<oy){
+              a.x=centerX(a)<centerX(b)?b.x-ab.w:b.x+bb.w;
+              a.vx=-(a.vx||0)*(a.bounce||0);
+            }else{
+              fromTop=py+ab.h<=b.y+2;
+              a.y=fromTop?b.y-ab.h:b.y+bb.h;
+              if(fromTop)a.onGround=true;
+              a.vy=fromTop?-(a.vy||0)*(a.bounce||0):Math.max(0,a.vy||0);
+              if(fromTop&&Math.abs(a.vy)<0.25)a.vy=0;
+            }
+          }
+          if(a.y>this.height+180&&a.killBelow!==false){a.dead=true;}
+        }
+        for(i=0;i<this.particles.length;i++){var p=this.particles[i];p.x+=p.vx*scale;p.y+=p.vy*scale;p.vy+=0.12*scale;p.life-=scale;}
+        this.particles=this.particles.filter(function(p){return p.life>0;});
+        this.bodies=this.bodies.filter(function(b){return !b.dead;});
+      },
+      draw:function(ctx){
+        var sx=this.shake?((Math.random()*2-1)*this.shake):0,sy=this.shake?((Math.random()*2-1)*this.shake):0;
+        ctx.save();ctx.translate(sx,sy);drawBackdrop(ctx,this.width,this.height,this.background);
+        for(var i=0;i<this.bodies.length;i++){ctx.save();ctx.globalAlpha=this.bodies[i].opacity==null?1:this.bodies[i].opacity;if(!this.bodies[i].static){ctx.shadowColor='rgba(0,0,0,0.35)';ctx.shadowBlur=8;ctx.shadowOffsetY=4;}drawBody(ctx,this.bodies[i]);ctx.restore();}
+        for(i=0;i<this.particles.length;i++){var p=this.particles[i];ctx.globalAlpha=clamp(p.life/34,0,1);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();}
+        ctx.globalAlpha=1;ctx.restore();
+        drawTextPill(ctx,this.levelName||('Livello '+(this.levelIndex+1)),8,8,142);
+        drawTextPill(ctx,'Score '+this.score,this.width-112,8,104);
+        if(this.transition>0){ctx.fillStyle='rgba(0,0,0,'+(this.transition*0.45)+')';ctx.fillRect(0,0,this.width,this.height);ctx.fillStyle='rgba(255,255,255,'+this.transition+')';ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.fillText(this.message||this.levelName,this.width/2,this.height/2);}
+        if(this.status==='failed'||this.status==='completed'){ctx.fillStyle='rgba(0,0,0,0.62)';ctx.fillRect(0,0,this.width,this.height);ctx.fillStyle='#fff';ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.fillText(this.message,this.width/2,this.height/2-12);ctx.font='15px sans-serif';ctx.fillStyle='#cbd5e1';ctx.fillText(this.status==='failed'?'tocca per riprovare':'partita completata',this.width/2,this.height/2+24);}
+      }
+    };
+    return world;
+  }
+  function bindPlatformControls(world,playerId,opts){
+    opts=opts||{};var jumpPower=opts.jumpPower||12,speed=opts.speed||3.2;
+    function setTouches(e){var i,x,y;world.input.left=false;world.input.right=false;world.input.jump=false;for(i=0;i<e.touches.length;i++){x=e.touches[i].clientX;y=e.touches[i].clientY;if(x<world.width*0.33)world.input.left=true;else if(x>world.width*0.67)world.input.right=true;if(y<world.height*0.75||x>world.width*0.58)world.input.jump=true;}}
+    canvas.addEventListener('touchstart',function(e){e.preventDefault();setTouches(e);},{passive:false});
+    canvas.addEventListener('touchmove',function(e){e.preventDefault();setTouches(e);},{passive:false});
+    canvas.addEventListener('touchend',function(e){e.preventDefault();setTouches(e);},{passive:false});
+    return function(){
+      var p=world.get(playerId||'player');if(!p)return;
+      p.vx=(world.input.right?speed:0)-(world.input.left?speed:0);
+      if(world.input.jump&&p.onGround){p.vy=-jumpPower;p.onGround=false;}
+    };
+  }
+  function startPlatformer(opts){
+    opts=opts||{};var game=create(opts);game.setLevels(opts.levels||[]);var playerId=opts.playerId||'player';var controls=bindPlatformControls(game,playerId,opts.controls||{});
+    canvas.addEventListener('touchstart',function(){if(game.status==='failed')game.restartLevel();},{passive:false});
+    function frame(){var p=game.get(playerId);if(game.status==='playing'){controls();if(opts.update)opts.update(game,p);game.step(1/60);p=game.get(playerId);if(p&&p.dead)game.fail('Game over');if(p&&game.touchesTag(p,'goal'))game.completeLevel();}game.draw(ctx);if(opts.draw)opts.draw(game,ctx);requestAnimationFrame(frame);}
+    requestAnimationFrame(frame);return game;
+  }
+  __def('GameKit',{create:create,bindPlatformControls:bindPlatformControls,startPlatformer:startPlatformer});
+})();`;
+  const networkGuard = allowNetwork
+    ? ''
+    : `
+/* Network is denied unless the module declares "network", the user grants it,
+   and the host build enables module network access. */
+(function(){
+  function denied(){throw new Error('Network APIs are disabled for this webGame module.');}
+  try{Object.defineProperty(window,'fetch',{value:denied,writable:false,configurable:false});}catch(e){window.fetch=denied;}
+  try{Object.defineProperty(window,'XMLHttpRequest',{value:function(){denied();},writable:false,configurable:false});}catch(e){window.XMLHttpRequest=function(){denied();};}
+  try{Object.defineProperty(window,'WebSocket',{value:function(){denied();},writable:false,configurable:false});}catch(e){window.WebSocket=function(){denied();};}
+  try{Object.defineProperty(window,'EventSource',{value:function(){denied();},writable:false,configurable:false});}catch(e){window.EventSource=function(){denied();};}
+  if(window.navigator){try{Object.defineProperty(window.navigator,'sendBeacon',{value:function(){denied();},writable:false,configurable:false});}catch(e){window.navigator.sendBeacon=function(){denied();};}}
+  try{Object.defineProperty(window,'importScripts',{value:denied,writable:false,configurable:false});}catch(e){window.importScripts=denied;}
+})();`;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -778,6 +983,8 @@ __def('ctx',__ctx);
 __def('WIDTH',__W);
 __def('HEIGHT',__H);
 __def('sendState',function(p){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:'state',patch:p}));}catch(e){}});
+${networkGuard}
+${gameKitRuntime}
 
 /* Gamepad bridge: receive button events from React Native */
 function __onMsg(e){try{var d=JSON.parse(e.data);if(d&&d.type==='btn'&&typeof window.__onBtn==='function')window.__onBtn(d.id,d.on);}catch(ex){}}
@@ -817,7 +1024,8 @@ function WebGameNode({
   const gw = node.width ?? 360;
   const gh = node.height ?? 600;
   const code = ctx.webgameCode ?? '// no game code';
-  const html = useMemo(() => buildWebGameHtml(code, gw, gh), [code, gw, gh]);
+  const allowNetwork = ctx.webGameAllowNetwork === true;
+  const html = useMemo(() => buildWebGameHtml(code, gw, gh, allowNetwork), [code, gw, gh, allowNetwork]);
 
   const onMessage = useCallback((event: WebViewMessageEvent) => {
     try {
@@ -847,7 +1055,8 @@ function WebGameNode({
         bounces={false}
         javaScriptEnabled
         domStorageEnabled
-        originWhitelist={['*']}
+        originWhitelist={allowNetwork ? ['*'] : ['about:blank']}
+        onShouldStartLoadWithRequest={(request) => allowNetwork || request.url === 'about:blank'}
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
         onMessage={onMessage}
@@ -993,15 +1202,10 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
       );
 
       const onPress = () => {
-        console.log('[Button] pressed', { id: node.id, navigate: node.navigate, action: actionName });
         if (node.navigate) {
-          console.log('[Button] calling onNavigate →', node.navigate);
           ctx.onNavigate(node.navigate);
         } else if (actionName) {
-          console.log('[Button] calling onButton →', actionName);
           void ctx.onButton(actionName, node.actionInput ?? {});
-        } else {
-          console.log('[Button] no navigate and no action — nothing to do');
         }
       };
 
@@ -1123,7 +1327,14 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
       );
 
     case 'image': {
-      const uri = getBound(ctx.state, node.bind);
+      const raw = ctx.state[node.bind];
+      // Support both string URI and object with { uri } (e.g. full camera result stored in state)
+      const uri =
+        typeof raw === 'string'
+          ? raw
+          : raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>).uri === 'string'
+          ? ((raw as Record<string, unknown>).uri as string)
+          : '';
       if (!uri) return <Text key={key} style={{ color: t.muted, fontSize: 14 }}>Nessuna immagine</Text>;
       return (
         <Image
@@ -1134,6 +1345,7 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
             layoutToViewStyle(node.layout) as ImageStyle,
           ]}
           resizeMode="cover"
+          onError={(e) => console.warn('[Image] load error for', uri, e.nativeEvent.error)}
         />
       );
     }
@@ -1159,6 +1371,9 @@ export function renderNode(node: UiNode, ctx: RenderCtx, keyPrefix: string): Rea
           </Text>
         </View>
       );
+
+    case 'timer':
+      return null;
 
     case 'webGame':
       return <WebGameNode key={key} node={node} ctx={ctx} nodeKey={key} />;

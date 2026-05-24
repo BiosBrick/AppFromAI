@@ -51,7 +51,8 @@ const FLAPPY_CODE =
   `const lastX=pipes.length>0?pipes[pipes.length-1].x:0;` +
   `if(lastX<W-150)pipes=[...pipes,{x:W,gap:100+Math.floor(Math.random()*220)}];` +
   `const pts=parseInt(String(state.score??'0'),10)+pipes.filter(p=>p.x+2>=BX&&p.x<BX).length;` +
-  `const hit=ny<BR||ny>H-BR||pipes.some(p=>Math.abs(p.x-BX)<BR+20&&(ny<p.gap-GAP||ny>p.gap+GAP));` +
+  `const HR=9;const cr=(cx,cy,r,rx,ry,rw,rh)=>{const nx=Math.max(rx,Math.min(cx,rx+rw)),ny2=Math.max(ry,Math.min(cy,ry+rh)),dx=cx-nx,dy=cy-ny2;return dx*dx+dy*dy<r*r;};` +
+  `const hit=ny<HR||ny>H-BR||pipes.some(p=>cr(BX,ny,HR,p.x-20,0,40,Math.max(0,p.gap-GAP))||cr(BX,ny,HR,p.x-20,p.gap+GAP,40,H));` +
   `const scene=[{type:'rect',x:0,y:0,w:W,h:H,color:'#70c5ce'}];` +
   `pipes.forEach(p=>{` +
   `scene.push({type:'rect',x:p.x-20,y:0,w:40,h:Math.max(0,p.gap-GAP),color:'#5d8a3c'});` +

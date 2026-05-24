@@ -1,41 +1,43 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
 import type { CapabilityRegistry } from './capabilityRegistry';
 
 export function createAudioPlayerCapability(registry: CapabilityRegistry) {
-  let sound: Audio.Sound | null = null;
+  let sound: AudioPlayer | null = null;
+  let playbackSubscription: { remove: () => void } | null = null;
 
   const stopAndUnload = async () => {
     if (!sound) return;
     const s = sound;
     sound = null;
-    try { await s.stopAsync(); } catch { /* già fermato */ }
-    try { await s.unloadAsync(); } catch { /* già scaricato */ }
+    playbackSubscription?.remove();
+    playbackSubscription = null;
+    try { s.pause(); } catch { /* già fermato */ }
+    try { s.remove(); } catch { /* già scaricato */ }
     registry.unregister('audioPlayer');
   };
 
   return {
     async play(uri: string): Promise<{ durationMs?: number }> {
       await stopAndUnload();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
       });
-      const { sound: s } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true }
-      );
+      const s = createAudioPlayer(uri);
       sound = s;
       registry.register('audioPlayer', stopAndUnload);
 
-      s.setOnPlaybackStatusUpdate((st) => {
+      playbackSubscription = s.addListener('playbackStatusUpdate', (st) => {
         if (st.isLoaded && st.didJustFinish) {
           void stopAndUnload();
         }
       });
 
-      const status = await s.getStatusAsync();
+      s.play();
+      const status = s.currentStatus;
       return {
-        durationMs: status.isLoaded ? status.durationMillis : undefined,
+        durationMs: status.isLoaded && status.duration ? Math.round(status.duration * 1000) : undefined,
       };
     },
 
@@ -45,24 +47,24 @@ export function createAudioPlayerCapability(registry: CapabilityRegistry) {
 
     async pause(): Promise<void> {
       if (sound) {
-        try { await sound.pauseAsync(); } catch { /* ignora */ }
+        try { sound.pause(); } catch { /* ignora */ }
       }
     },
 
     async resume(): Promise<void> {
       if (sound) {
-        try { await sound.playAsync(); } catch { /* ignora */ }
+        try { sound.play(); } catch { /* ignora */ }
       }
     },
 
     async getStatus(): Promise<{ isPlaying: boolean; positionMs?: number; durationMs?: number }> {
       if (!sound) return { isPlaying: false };
-      const st = await sound.getStatusAsync().catch(() => null);
-      if (!st || !st.isLoaded) return { isPlaying: false };
+      const st = sound.currentStatus;
+      if (!st.isLoaded) return { isPlaying: false };
       return {
-        isPlaying: st.isPlaying,
-        positionMs: st.positionMillis,
-        durationMs: st.durationMillis,
+        isPlaying: st.playing,
+        positionMs: Math.round(st.currentTime * 1000),
+        durationMs: st.duration ? Math.round(st.duration * 1000) : undefined,
       };
     },
   };

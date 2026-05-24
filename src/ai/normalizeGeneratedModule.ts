@@ -54,6 +54,7 @@ function canonComponentType(t: string): string {
   if (x === 'audiorecorder') return 'audioRecorder';
   if (x === 'qrscanner') return 'qrScanner';
   if (x === 'gameview' || x === 'game-view') return 'gameView';
+  if (x === 'ticker' || x === 'interval' || x === 'countdown') return 'timer';
   if (x === 'label' || x === 'paragraph' || x === 'p' || x === 'span' || x === 'title' || x === 'heading' || x === 'h1' || x === 'h2' || x === 'h3') return 'text';
   if (x === 'textfield' || x === 'textinput' || x === 'textbox' || x === 'field') return 'input';
   if (x === 'multilineinput' || x === 'multiline' || x === 'text-area') return 'textarea';
@@ -203,6 +204,25 @@ function normalizeUiNode(node: unknown, path: string): unknown {
       const h = parseFloat(n.height);
       if (!Number.isNaN(h)) n.height = h;
     }
+    return n;
+  }
+
+  if (type === 'timer') {
+    if (typeof n.tickAction !== 'string' || !n.tickAction) {
+      const action = n.action ?? n.onTick ?? n.tick;
+      n.tickAction = typeof action === 'string' && action ? action : 'onTimerTick';
+    }
+    const ms = Number(n.intervalMs ?? n.ms ?? n.tickMs ?? 1000);
+    n.intervalMs = Number.isFinite(ms) ? Math.max(100, Math.round(ms)) : 1000;
+    if (typeof n.id !== 'string' || !n.id) n.id = `timer-${String(n.tickAction).replace(/[^a-z0-9-]/gi, '-')}`;
+    if (n.activeBind != null && (typeof n.activeBind !== 'string' || !n.activeBind)) delete n.activeBind;
+    if (n.runImmediately != null) n.runImmediately = !!n.runImmediately;
+    if (n.autoStart != null) n.autoStart = !!n.autoStart;
+    delete n.action;
+    delete n.onTick;
+    delete n.tick;
+    delete n.ms;
+    delete n.tickMs;
     return n;
   }
 
