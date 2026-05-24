@@ -22,6 +22,8 @@ No code. No cloud. No waiting.
 
 </div>
 
+<a href="https://www.producthunt.com/products/appfromai?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-appfromai-2" target="_blank" rel="noopener noreferrer"><img alt="AppFromAI - Write a sentence Generate an AI app module for iOS &amp; Android | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1149098&amp;theme=light&amp;t=1779629527598"></a>
+
 ---
 
 ## What is AppFromAI?
