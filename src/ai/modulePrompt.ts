@@ -29,13 +29,14 @@ MANIFEST
 UI (albero dichiarativo)
 - Radice: { "type": "screen", "title": "...", "components": [ ... ] } oppure { "type": "navigator", ... } per moduli multi-pagina.
 - In "components" (screen, box, card) ogni elemento deve essere un OGGETTO con "type". Vietato inserire stringhe, numeri o null come elementi dell'array (errore di validazione).
-- Tipi ammessi: navigator, screen, box, text, input, textarea, button, list, card, image, audioRecorder, qrScanner, webGame, gamepad. Non usare type "row" o "column" da soli: usa "box" con "direction": "row" | "column".
+- Tipi ammessi: navigator, screen, box, text, input, textarea, button, list, card, image, audioRecorder, qrScanner, timer, webGame, gamepad. Non usare type "row" o "column" da soli: usa "box" con "direction": "row" | "column".
 - box: contenitore flex. direction "row" (in riga) o "column" (default). Opzionali: gap, padding, wrap (boolean), alignItems (stretch|flex-start|flex-end|center|baseline), justifyContent (flex-start|flex-end|center|space-between|space-around|space-evenly), components: [ ... ]. Per griglie (calcolatrici, tastierini) usa più box annidate: una box column di righe, ogni riga una box row; sui button in riga usa "layout": { "flex": 1 } per larghezze uniformi.
 - layout (opzionale sui componenti): flex, flexGrow, flexShrink, width (numero o stringa tipo "32%"), minWidth, maxWidth, alignSelf, margin*, textAlign (left|center|right) per testo/campi. NON usare position absolute nel JSON: usa box + flex.
 - button: id, text. Se chiama codice: action (nome funzione in actions), actionInput opzionale. Se naviga: "navigate": "nomeSchermata" (oppure "__back" per tornare indietro) — in questo caso action non è necessaria. Le action hanno SEMPRE firma esattamente (api, input, state).
 - input / textarea: id, bind obbligatori; placeholder, keyboardType (default|numeric|decimal-pad) dove serve.
 - text: opzionale bind (mostra stato); se serve valore iniziale usa anche "text".
 - list: bind (array in stato). image: bind (URI stringa). card: components annidati.
+- timer: componente invisibile gestito dall'host, per countdown/cronometri/pomodoro. Forma: { "type": "timer", "id": "mainTimer", "tickAction": "tick", "intervalMs": 1000, "activeBind": "running", "autoStart": false, "runImmediately": false }. Se activeBind è presente, il timer gira solo quando state[activeBind] è truthy; con activeBind l'avvio iniziale è false salvo "autoStart": true. Se activeBind manca, autoStart default true. NON usare setInterval/setTimeout nel code dei moduli normali: usa sempre il componente timer.
 
 NAVIGAZIONE MULTI-PAGINA (navigator)
 - Usa "navigator" come radice quando il modulo ha più schermate separate.
@@ -62,12 +63,13 @@ CODE (stringa JavaScript eseguita in Hermes)
 - Apri siti web: usa SEMPRE il componente webview nell'UI (src: url) — non api.linking. Per email/telefono/sms: usa api.linking con permesso "linking" in manifest. Non usare oggetti globali Linking.
 - Vietato nel sorgente: eval, Function, new Function, require, import/export ESM, process, global/globalThis, __dirname, __filename, fs, import dinamico, Linking., while(true), for(;;).
 - Calcolatrici / formule: MAI eval(...) o Function(...) sull'espressione mostrata — il modulo viene rifiutato. Usa stato (es. display, valore accumulato, operatore corrente) e nelle action applica + − × ÷ tra numeri già noti, oppure costruisci il risultato tasto per tasto come fanno le calcolatrici classiche.
+- Timer / countdown / cronometri: MAI usare setInterval o setTimeout nel code. Aggiungi un componente { "type":"timer","tickAction":"tick","intervalMs":1000,"activeBind":"running" }. L'action tick riceve input { timerId, tick:true, intervalMs, now } e deve restituire il patch di stato. Start/pausa/reset sono normali button action che impostano running e i valori numerici.
 
 API DISPONIBILI (solo con permesso manifest + consenso utente)
-- Fotocamera: permesso "camera" → const photo = await api.camera.takePhoto(); → { uri, width, height } | null. Mostra con componente image (bind a uri).
+- Fotocamera: permesso "camera" → const photo = await api.camera.takePhoto(); → { uri, fileUri, width, height } | null. Mostra subito con componente image usando photo.uri. Se devi salvare il file permanente, preferisci photo.fileUri || photo.uri.
 - Microfono / registrazione: permesso "audioRecorder" → await api.audioRecorder.start(); → await api.audioRecorder.stop(); → { uri, durationMs } | null. L'URI è persistente e riascoltabile.
 - Riproduzione audio: permesso "audioRecorder" (stesso permesso) → await api.audioPlayer.play(uri); → { durationMs }. Controlla: await api.audioPlayer.stop(); await api.audioPlayer.pause(); await api.audioPlayer.resume(); await api.audioPlayer.getStatus(); → { isPlaying, positionMs, durationMs }.
-- Salvataggio URI file (audio/foto): usa api.storage.save('chiave', uri) per memorizzare l'URI restituito da stop() o takePhoto(). Recupera con const uri = await api.storage.load('chiave'). L'URI rimane valido tra le sessioni.
+- Salvataggio URI file (audio/foto): per audio usa l'URI restituito da stop(); per foto usa photo.fileUri || photo.uri. Recupera con const uri = await api.storage.load('chiave'). L'URI rimane valido tra le sessioni.
 - QR scanner: permesso "qrScanner" → const text = await api.qrScanner.scan(); → stringa | null.
 - Torcia: permesso "torch" → await api.torch.setEnabled(true|false). La torcia si spegne automaticamente all'uscita dal modulo.
 - GPS/posizione: permesso "location" → const pos = await api.location.getCurrentPosition(); → { latitude, longitude, accuracy, altitude, heading, speed, timestamp }.
@@ -85,8 +87,9 @@ API DISPONIBILI (solo con permesso manifest + consenso utente)
 
 PATTERN CONSIGLIATI
 - Registra audio e poi riascolta: start → stop (salva uri in stato) → play(uri). Salva uri con api.storage.save se serve tra sessioni.
-- Foto con visualizzazione: takePhoto → salva photo.uri in stato bind a image. Salva uri con api.storage.save per riaverla.
+- Foto con visualizzazione: takePhoto → salva photo.uri in stato bind a image per anteprima immediata. Per persistenza salva photo.fileUri || photo.uri con api.storage.save.
 - Flusso con più step: usa stato intermedio con bind text (es. status: ''), aggiorna con return { status: 'Registrazione avviata' }.
+- Timer affidabile: text bind "display"/"status" + timer invisibile con activeBind "running" + action tick che decrementa/incrementa usando fallback numerici. Esempio tick: const remaining=Math.max(0,(parseInt(String(state.remaining??'60'),10)||0)-1); return { remaining, display: String(remaining), running: remaining>0, status: remaining===0?'Finito':'In corso' };
 
 STATO SICURO (obbligatorio — Hermes lancia ReferenceError se accedi a proprietà non inizializzate)
 - REGOLA ASSOLUTA: ogni lettura da state deve usare un fallback esplicito. Al primo avvio state contiene solo i valori iniziali dei componenti UI — tutte le altre chiavi sono undefined. Un accesso diretto a undefined causa crash.
@@ -119,6 +122,7 @@ Il code è JavaScript puro che gira nel WebView. Variabili globali GIÀ disponib
 - canvas, ctx, WIDTH, HEIGHT  — canvas già inizializzato e scalato
 - sendState(patch)            — opzionale: invia dati allo stato React Native (score, ecc.)
 - window.__onBtn(id, pressed) — opzionale: ricevi eventi da gamepad React Native esterno
+- GameKit                    — helper host per fisica, collisioni, sensori, controlli platform e livelli
 
 ⚠️  VIETATO ASSOLUTO nel code webGame:
 - NON scrivere: var canvas, var ctx, var WIDTH, var HEIGHT, var sendState, var window
@@ -133,6 +137,33 @@ REGOLE CODE webGame:
 - INPUT: gestisci TUTTO il touch direttamente sul canvas (più affidabile)
 - Gestisci game over e restart dentro il loop (nessun reload pagina)
 - Disegna i controlli virtuali DENTRO il canvas se servono pulsanti visibili
+- Platform / puzzle / action con gravità: usa GameKit.create(...) + setLevels(...), NON reinventare collisioni AABB complesse.
+- Esperienza “wow”: per giochi a livelli usa preferibilmente GameKit.startPlatformer(...). Include già HUD, score, transizione livelli, particelle, shake, restart su game over, goal, hazard e collectibles.
+- Giochi tipo Flappy/dodge: NON usare collisioni a quadrato pieno sul personaggio se è disegnato come cerchio. Usa collisione cerchio-rettangolo con hitbox ridotta (hitR circa 70-75% del raggio visivo), così il game over coincide con ciò che l'utente vede.
+- Ogni gioco non banale deve avere almeno 3 livelli con difficoltà crescente, goal chiaro e restart in caso di caduta/morte.
+
+PATTERN PLATFORM CON FISICA + LIVELLI (usa questo per Mario-like, platform, puzzle fisici):
+GameKit.startPlatformer({gravityY:0.65,width:WIDTH,height:HEIGHT,background:'#0f172a',controls:{speed:3.2,jumpPower:12},levels:[
+  {name:'Livello 1',background:'#12213a',player:{id:'player',x:34,y:470,w:26,h:32},goal:{x:310,y:486,w:30,h:46},bodies:[
+    {id:'floor',x:0,y:552,w:360,h:48,static:true,color:'#334155'},
+    {id:'p1',x:120,y:472,w:86,h:18,static:true,color:'#64748b'},
+    {id:'coin1',tag:'coin',sensor:true,static:true,solid:false,type:'circle',x:150,y:432,r:8,color:'#facc15'}
+  ]},
+  {name:'Livello 2',background:'#172554',player:{id:'player',x:30,y:470,w:26,h:32},goal:{x:318,y:390,w:28,h:52},bodies:[
+    {id:'floor',x:0,y:552,w:360,h:48,static:true,color:'#334155'},
+    {id:'p1',x:72,y:486,w:68,h:18,static:true,color:'#64748b'},
+    {id:'p2',x:178,y:432,w:72,h:18,static:true,color:'#64748b'},
+    {id:'p3',x:284,y:486,w:76,h:18,static:true,color:'#64748b'},
+    {id:'spike',tag:'hazard',sensor:true,static:true,solid:false,x:146,y:536,w:42,h:16,color:'#ef4444'}
+  ]},
+  {name:'Livello 3',background:'#1e1b4b',player:{id:'player',x:24,y:470,w:26,h:32},goal:{x:310,y:314,w:28,h:52},bodies:[
+    {id:'floorL',x:0,y:552,w:116,h:48,static:true,color:'#334155'},
+    {id:'floorR',x:244,y:552,w:116,h:48,static:true,color:'#334155'},
+    {id:'p1',x:124,y:500,w:58,h:18,static:true,color:'#64748b'},
+    {id:'p2',x:206,y:440,w:58,h:18,static:true,color:'#64748b'},
+    {id:'p3',x:286,y:368,w:62,h:18,static:true,color:'#64748b'}
+  ]}
+]});
 
 I 3 PATTERN BASE — INPUT via TOUCH DIRETTO sul canvas (NESSUN bridge esterno):
 
@@ -140,6 +171,7 @@ PATTERN TAP (Flappy Bird, gravity, pallina che salta):
 canvas.addEventListener('touchstart',function(e){e.preventDefault();if(!alive){restart();}else{vy=-9;}},{passive:false});
 var x=80,y=HEIGHT/2,vy=0,pipes=[],score=0,alive=true,dist=0;
 function restart(){y=HEIGHT/2;vy=0;pipes=[];score=0;alive=true;dist=0;}
+function circleRect(cx,cy,r,rx,ry,rw,rh){var nx=Math.max(rx,Math.min(cx,rx+rw));var ny=Math.max(ry,Math.min(cy,ry+rh));var dx=cx-nx,dy=cy-ny;return dx*dx+dy*dy<r*r;}
 function loop(){
   if(!alive){drawGameOver();requestAnimationFrame(loop);return;}
   vy+=0.45;y+=vy;dist++;
@@ -147,7 +179,8 @@ function loop(){
   pipes.forEach(function(p){p.x-=3;});
   pipes=pipes.filter(function(p){return p.x>-54;});
   pipes.forEach(function(p){if(!p.passed&&p.x+54<x){p.passed=true;score++;sendState({score:score});}});
-  var dead=y<14||y>HEIGHT-14||pipes.some(function(p){return x+14>p.x&&x-14<p.x+54&&(y-14<p.gap-65||y+14>p.gap+65);});
+  var hitR=10; /* raggio visivo 14, hitbox leggermente più piccola per evitare game over ingiusti */
+  var dead=y<hitR||y>HEIGHT-40-hitR||pipes.some(function(p){return circleRect(x,y,hitR,p.x,0,54,p.gap-65)||circleRect(x,y,hitR,p.x,p.gap+65,54,HEIGHT-(p.gap+65));});
   if(dead)alive=false;
   ctx.fillStyle='#87CEEB';ctx.fillRect(0,0,WIDTH,HEIGHT);
   pipes.forEach(function(p){ctx.fillStyle='#22c55e';ctx.fillRect(p.x,0,54,p.gap-65);ctx.fillRect(p.x,p.gap+65,54,HEIGHT);});
@@ -256,30 +289,32 @@ ESEMPIO 2 — multi-pagina con navigator + onFocus per ricaricare lista (usa SEM
   "code": "module.exports = { actions: { async caricaLista(api, input, state) { const raw = await api.storage.load('items'); const arr = raw ? JSON.parse(raw) : []; return { items: arr }; }, async salvaItem(api, input, state) { const testo = String(state.testo ?? ''); if (!testo) return { statoSalvataggio: 'Inserisci un testo.' }; const raw = await api.storage.load('items'); const arr = raw ? JSON.parse(raw) : []; arr.push(testo); await api.storage.save('items', JSON.stringify(arr)); return { testo: '', __navigate: '__back' }; } } };"
 }`;
 
-const GAME_EXAMPLE = `ESEMPIO 3 — Flappy Bird con webGame (canvas 2D, 60fps nativi):
+const GAME_EXAMPLE = `ESEMPIO 3 — platform con webGame + GameKit (fisica, collisioni, livelli):
 {
-  "manifest": { "id": "flappy-bird", "name": "Flappy Bird", "version": "1.0.0", "runtime": "javascript", "permissions": [], "entry": "logic.js", "ui": "ui.json" },
+  "manifest": { "id": "platform-levels", "name": "Platform Levels", "version": "1.0.0", "runtime": "javascript", "permissions": [], "entry": "logic.js", "ui": "ui.json" },
   "ui": {
-    "type": "screen", "title": "Flappy Bird", "gap": 0,
+    "type": "screen", "title": "Platform Levels", "gap": 0,
     "theme": { "bg": "#000" },
     "components": [
       { "type": "webGame", "id": "game", "width": 360, "height": 600 }
     ]
   },
-  "code": "var by=HEIGHT/2,bvy=0,pipes=[],score=0,alive=true,dist=0;function restart(){by=HEIGHT/2;bvy=0;pipes=[];score=0;alive=true;dist=0;}canvas.addEventListener('touchstart',function(e){e.preventDefault();if(!alive){restart();}else{bvy=-9;}},{passive:false});var last=0;function loop(ts){var dt=Math.min((ts-last)/1000,0.1);last=ts;if(alive){bvy+=0.45;by+=bvy;dist++;if(dist%90===0){pipes.push({x:WIDTH+10,gapY:100+Math.floor(Math.random()*(HEIGHT-220))});}pipes.forEach(function(p){p.x-=3;});pipes=pipes.filter(function(p){return p.x>-54;});pipes.forEach(function(p){if(!p.passed&&p.x+54<80){p.passed=true;score++;sendState({score:score});}});var dead=by<14||by>HEIGHT-14||pipes.some(function(p){return 80+14>p.x&&80-14<p.x+54&&(by-14<p.gapY-65||by+14>p.gapY+65);});if(dead)alive=false;}ctx.fillStyle='#87CEEB';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.fillStyle='#5DBB3F';ctx.fillRect(0,HEIGHT-40,WIDTH,40);pipes.forEach(function(p){ctx.fillStyle='#22c55e';ctx.fillRect(p.x,0,54,p.gapY-65);ctx.fillRect(p.x,p.gapY+65,54,HEIGHT);ctx.fillStyle='#16a34a';ctx.fillRect(p.x-3,p.gapY-65-20,60,20);ctx.fillRect(p.x-3,p.gapY+65,60,20);});ctx.beginPath();ctx.arc(80,by,14,0,Math.PI*2);ctx.fillStyle='#facc15';ctx.fill();ctx.strokeStyle='#ca8a04';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 28px sans-serif';ctx.textAlign='center';ctx.fillText(score,WIDTH/2,40);if(!alive){ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.fillStyle='#f87171';ctx.font='bold 32px sans-serif';ctx.textAlign='center';ctx.fillText('GAME OVER',WIDTH/2,HEIGHT/2-30);ctx.fillStyle='#fff';ctx.font='bold 20px sans-serif';ctx.fillText('Score: '+score,WIDTH/2,HEIGHT/2+10);ctx.fillStyle='#aaa';ctx.font='15px sans-serif';ctx.fillText('Tap to restart',WIDTH/2,HEIGHT/2+45);}requestAnimationFrame(loop);}requestAnimationFrame(loop);"
+  "code": "GameKit.startPlatformer({gravityY:0.65,width:WIDTH,height:HEIGHT,background:'#0f172a',controls:{speed:3.2,jumpPower:12},levels:[{name:'Livello 1',background:'#12213a',player:{id:'player',x:34,y:470,w:26,h:32},goal:{x:310,y:486,w:30,h:46},bodies:[{id:'floor',x:0,y:552,w:360,h:48,static:true,color:'#334155'},{id:'p1',x:120,y:472,w:86,h:18,static:true,color:'#64748b'},{id:'coin1',tag:'coin',sensor:true,static:true,solid:false,type:'circle',x:150,y:432,r:8,color:'#facc15'}]},{name:'Livello 2',background:'#172554',player:{id:'player',x:30,y:470,w:26,h:32},goal:{x:318,y:390,w:28,h:52},bodies:[{id:'floor',x:0,y:552,w:360,h:48,static:true,color:'#334155'},{id:'p1',x:72,y:486,w:68,h:18,static:true,color:'#64748b'},{id:'p2',x:178,y:432,w:72,h:18,static:true,color:'#64748b'},{id:'spike',tag:'hazard',sensor:true,static:true,solid:false,x:146,y:536,w:42,h:16,color:'#ef4444'}]},{name:'Livello 3',background:'#1e1b4b',player:{id:'player',x:24,y:470,w:26,h:32},goal:{x:310,y:314,w:28,h:52},bodies:[{id:'floorL',x:0,y:552,w:116,h:48,static:true,color:'#334155'},{id:'floorR',x:244,y:552,w:116,h:48,static:true,color:'#334155'},{id:'p1',x:124,y:500,w:58,h:18,static:true,color:'#64748b'},{id:'p2',x:206,y:440,w:58,h:18,static:true,color:'#64748b'},{id:'p3',x:286,y:368,w:62,h:18,static:true,color:'#64748b'}]}]});"
 }`;
 
 /** Blocco da mostrare sopra agli errori di generazione/validazione/compilazione (stesso "contratto" del modello). */
 export function getJsonResponseRetryHint(): string {
   return `Rigenera un UNICO JSON valido (solo chiavi manifest, ui, code — niente markdown né testo extra).
 GIOCHI: usa SEMPRE { "type":"webGame","width":360,"height":600 } nell'UI. Il code è JavaScript browser (canvas 2D + requestAnimationFrame), NON module.exports.
-  Globals già pronti (NON ridichiarare): canvas, ctx, WIDTH, HEIGHT, sendState.
+  Globals già pronti (NON ridichiarare): canvas, ctx, WIDTH, HEIGHT, sendState, GameKit.
+  Platform/action: usa preferibilmente GameKit.startPlatformer({levels:[...]}) per avere fisica, livelli, HUD, transizioni, particelle, score e restart.
   VIETATO: var canvas, var ctx, var WIDTH, var HEIGHT, var window, function init(){canvas=document...}.
   Touch: canvas.addEventListener('touchstart',fn,{passive:false}), e.preventDefault() dentro.
   Split-screen: touchLeft=(e.touches[0].clientX<WIDTH/2).
   Loop: function loop(){...draw...requestAnimationFrame(loop);} requestAnimationFrame(loop);
   NO: require, import, module.exports, eval, while(true).
 • navigator: { "type":"navigator","initialScreen":"home","screens":{"home":{"type":"screen","onFocus":"loadData",...}} }
+• timer/countdown: aggiungi componente invisibile { "type":"timer","id":"mainTimer","tickAction":"tick","intervalMs":1000,"activeBind":"running","autoStart":false }. Nel code NON usare setInterval/setTimeout; crea action tick(api,input,state){...}.
 • app normale: code=module.exports={actions:{async nome(api,input,state){return patch;}}}; NO TypeScript; NO eval; virgolette escape \\"; graffe bilanciate.
 • notifications: api.notifications.schedule(titolo, testo, secondiDaOra) — 3 argomenti separati.`;
 }

@@ -7,7 +7,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run typecheck && node scripts/lint-no-debug.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -16,13 +17,15 @@
     "axios": "^1.15.2",
     "babel-preset-expo": "~54.0.10",
     "expo": "~54.0.33",
-    "expo-av": "~16.0.8",
+    "expo-asset": "~12.0.13",
+    "expo-audio": "~1.1.1",
     "expo-camera": "~17.0.10",
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.22",
     "expo-haptics": "~15.0.8",
+    "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.11",
     "expo-location": "~19.0.8",
     "expo-notifications": "~0.32.16",

@@ -29,6 +29,10 @@ function looksLikeWebGameCode(code: string): boolean {
   );
 }
 
+function looksLikeWebGameNetworkCode(code: string): boolean {
+  return /\b(fetch|XMLHttpRequest|WebSocket|EventSource)\b|\bnavigator\s*\.\s*sendBeacon\b|\bimportScripts\s*\(/.test(code);
+}
+
 function collectButtonActions(node: UiNode): string[] {
   // Se il button ha navigate, l'action è opzionale e non va validata
   if (node.type === 'button') return node.action && !node.navigate ? [node.action] : [];
@@ -41,6 +45,9 @@ function collectButtonActions(node: UiNode): string[] {
   }
   if (node.type === 'gamepad') {
     return node.buttons.map((b) => b.action).filter(Boolean);
+  }
+  if (node.type === 'timer') {
+    return node.tickAction ? [node.tickAction] : [];
   }
   if (node.type === 'gameView') {
     const acts: string[] = [];
@@ -128,6 +135,24 @@ export function validateGeneratedModule(raw: unknown): ValidateResult {
   const codeIsWebGame = looksLikeWebGameCode(parsed.data.code);
   const isWebGame = uiHasWebGame || codeIsWebGame;
 
+  const scan = scanGeneratedCode(parsed.data.code);
+  if (!scan.ok) {
+    const err = formatCodeScanError(scan.reason);
+    reportGenAppError('moduleValidator.codeScan', new Error(scan.reason), {
+      codeHead: parsed.data.code.slice(0, 800),
+      isWebGame,
+    });
+    return { ok: false, error: err };
+  }
+
+  if (isWebGame && looksLikeWebGameNetworkCode(parsed.data.code) && !parsed.data.manifest.permissions.includes('network')) {
+    const err = 'I giochi WebView che usano rete devono dichiarare il permesso "network" nel manifest.';
+    reportGenAppError('moduleValidator.webGameNetworkPermission', new Error(err), {
+      codeHead: parsed.data.code.slice(0, 800),
+    });
+    return { ok: false, error: err };
+  }
+
   if (isWebGame && !uiHasWebGame) {
     // AI generated browser-style game code but forgot the webGame UI node.
     // Inject a webGame node so DynamicRenderer knows to skip Hermes and use WebView.
@@ -136,15 +161,6 @@ export function validateGeneratedModule(raw: unknown): ValidateResult {
   }
 
   if (!isWebGame) {
-    const scan = scanGeneratedCode(parsed.data.code);
-    if (!scan.ok) {
-      const err = formatCodeScanError(scan.reason);
-      reportGenAppError('moduleValidator.codeScan', new Error(scan.reason), {
-        codeHead: parsed.data.code.slice(0, 800),
-      });
-      return { ok: false, error: err };
-    }
-
     // Cross-valida: ogni action dichiarata nei button deve esistere nel codice compilato.
     const compileResult = tryCompileModuleActions(parsed.data.code);
     if (!compileResult.ok) {

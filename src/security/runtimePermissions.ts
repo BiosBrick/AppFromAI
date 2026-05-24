@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { Audio } from 'expo-av';
+import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { Camera } from 'expo-camera';
 import * as Location from 'expo-location';
 import type { MotherPermission } from '../types/generatedModule';
@@ -14,7 +14,7 @@ export async function prefetchNativePermissions(perms: MotherPermission[]): Prom
 
   if (set.has('audioRecorder')) {
     try {
-      const r = await Audio.requestPermissionsAsync();
+      const r = await requestRecordingPermissionsAsync();
       if (!r.granted) {
         warnings.push('Microfono: permesso non concesso (il registratore potrebbe fallire).');
       }

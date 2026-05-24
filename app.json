@@ -70,19 +70,28 @@
         }
       ],
       [
-        "expo-av",
-        {
-          "microphonePermission": "Allow AppFromAI to record audio through enabled modules."
-        }
-      ],
-      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
           "color": "#111827"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow AppFromAI to record audio through enabled modules."
+        }
+      ],
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow AppFromAI to open the camera for photo modules.",
+          "photosPermission": "Allow AppFromAI to use photos selected by enabled modules.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "router": {}

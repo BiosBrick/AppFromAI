@@ -8,6 +8,8 @@ import { runAction, tryCompileModuleActions, type CompiledActions } from '../mod
 import { renderNode, resolveTheme, type ResolvedTheme } from './components';
 import { useI18n } from '../i18n/useI18n';
 
+type TimerUiNode = Extract<UiNode, { type: 'timer' }>;
+
 function hasWebGameNode(node: UiNode): boolean {
   if (node.type === 'webGame') return true;
   if (node.type === 'navigator') return Object.values(node.screens).some((s) => s.components.some(hasWebGameNode));
@@ -30,6 +32,9 @@ function collectButtonActions(node: UiNode): string[] {
   }
   if (node.type === 'gamepad') {
     return node.buttons.map((b) => b.action).filter(Boolean);
+  }
+  if (node.type === 'timer') {
+    return node.tickAction ? [node.tickAction] : [];
   }
   if (node.type === 'gameView') {
     const acts: string[] = [];
@@ -68,6 +73,9 @@ function collectInitialState(node: UiNode, acc: Record<string, unknown>) {
     case 'image':
       if (!(node.bind in acc)) acc[node.bind] = '';
       break;
+    case 'timer':
+      if (node.activeBind && !(node.activeBind in acc)) acc[node.activeBind] = node.autoStart === true;
+      break;
     case 'card':
     case 'box':
       node.components.forEach((c: UiNode) => collectInitialState(c, acc));
@@ -89,13 +97,36 @@ function buildInitialState(ui: UiNode): Record<string, unknown> {
   return acc;
 }
 
+function collectTimers(node: UiNode): TimerUiNode[] {
+  if (node.type === 'timer') return [node];
+  if (node.type === 'navigator') return [];
+  if ('components' in node && Array.isArray(node.components)) return node.components.flatMap(collectTimers);
+  return [];
+}
+
+function timerSignature(timers: TimerUiNode[]): string {
+  return timers
+    .map((timer) =>
+      [
+        timer.id ?? '',
+        timer.tickAction,
+        timer.intervalMs ?? '',
+        timer.runImmediately === true ? '1' : '0',
+        timer.autoStart === false ? '0' : '1',
+        timer.activeBind ?? '',
+      ].join(':')
+    )
+    .join('|');
+}
+
 type Props = {
   ui: UiNode;
   code: string;
   motherApi: MotherApi;
+  webGameAllowNetwork?: boolean;
 };
 
-export function DynamicRenderer({ ui, code, motherApi }: Props) {
+export function DynamicRenderer({ ui, code, motherApi, webGameAllowNetwork = false }: Props) {
   const { t } = useI18n();
   const isWebGame = useMemo(() => hasWebGameNode(ui) || WEBGAME_CODE_RE.test(code), [ui, code]);
 
@@ -204,6 +235,108 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentScreenKey]);
 
+  // ── Resolve theme ──
+  let activeScreen: NavigatorScreen | null = null;
+  let theme: ResolvedTheme;
+
+  if (isNavigator && ui.type === 'navigator') {
+    activeScreen = ui.screens[currentScreenKey] ?? null;
+    const screenTheme = activeScreen?.theme ?? ui.theme;
+    theme = resolveTheme(screenTheme);
+  } else if (ui.type === 'screen') {
+    theme = resolveTheme(ui.theme);
+  } else {
+    theme = resolveTheme();
+  }
+
+  const ctx = {
+    state,
+    setState: patchState,
+    onButton,
+    onNavigate,
+    busyAction,
+    theme,
+    hasError: Boolean(error),
+    webgameCode: isWebGame ? code : undefined,
+    webGameAllowNetwork,
+  };
+
+  // ── Which node to render ──
+  const nodeToRender: UiNode | null =
+    isNavigator && activeScreen
+      ? activeScreen
+      : ui.type === 'screen'
+      ? ui
+      : null;
+
+  const timers = useMemo(() => (nodeToRender ? collectTimers(nodeToRender) : []), [nodeToRender]);
+  const timerConfigKey = useMemo(() => timerSignature(timers), [timers]);
+  const activeTimerKey = useMemo(
+    () =>
+      timers
+        .map((timer) =>
+          timer.activeBind ? `${timer.id ?? timer.tickAction}:${String(Boolean(state[timer.activeBind]))}` : ''
+        )
+        .join('|'),
+    [timers, state]
+  );
+
+  useEffect(() => {
+    if (compileError || isWebGame || !actions || timers.length === 0) return;
+
+    const stops: Array<() => void> = [];
+    timers.forEach((timer) => {
+      if (!timer.tickAction || !(timer.tickAction in actions)) return;
+
+      const active =
+        timer.activeBind != null
+          ? Boolean(stateRef.current[timer.activeBind])
+          : timer.autoStart !== false;
+      if (!active) return;
+
+      const intervalMs = Math.max(100, Math.round(Number(timer.intervalMs) || 1000));
+      const timerId = timer.id ?? timer.tickAction;
+      let cancelled = false;
+      let busy = false;
+
+      const tick = () => {
+        if (cancelled || busy) return;
+        busy = true;
+        runAction(
+          actions,
+          timer.tickAction,
+          motherApi,
+          { timerId, tick: true, intervalMs, now: Date.now() },
+          stateRef.current,
+          { timeoutMs: Math.max(1000, Math.min(8000, intervalMs)) }
+        )
+          .then((delta) => {
+            if (cancelled) return;
+            if (delta && typeof delta === 'object') patchState(delta as Record<string, unknown>);
+          })
+          .catch((e) => {
+            if (cancelled) return;
+            setError('Timer non riuscito, rigenera il modulo.');
+            reportGenAppError('DynamicRenderer.timer', e, { action: timer.tickAction, timerId });
+          })
+          .finally(() => {
+            busy = false;
+          });
+      };
+
+      if (timer.runImmediately) tick();
+      const id = setInterval(tick, intervalMs);
+      stops.push(() => {
+        cancelled = true;
+        clearInterval(id);
+      });
+    });
+
+    return () => {
+      stops.forEach((stop) => stop());
+    };
+  }, [actions, activeTimerKey, compileError, isWebGame, motherApi, patchState, timerConfigKey, timers]);
+
   if (compileError) {
     return (
       <View style={styles.errBox}>
@@ -220,30 +353,6 @@ export function DynamicRenderer({ ui, code, motherApi }: Props) {
       </View>
     );
   }
-
-  // ── Resolve theme ──
-  let activeScreen: NavigatorScreen | null = null;
-  let theme: ResolvedTheme;
-
-  if (isNavigator && ui.type === 'navigator') {
-    activeScreen = ui.screens[currentScreenKey] ?? null;
-    const screenTheme = activeScreen?.theme ?? ui.theme;
-    theme = resolveTheme(screenTheme);
-  } else if (ui.type === 'screen') {
-    theme = resolveTheme(ui.theme);
-  } else {
-    theme = resolveTheme();
-  }
-
-  const ctx = { state, setState: patchState, onButton, onNavigate, busyAction, theme, hasError: Boolean(error), webgameCode: isWebGame ? code : undefined };
-
-  // ── Which node to render ──
-  const nodeToRender: UiNode | null =
-    isNavigator && activeScreen
-      ? activeScreen
-      : ui.type === 'screen'
-      ? ui
-      : null;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.bg }]}>

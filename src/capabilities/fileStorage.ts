@@ -27,6 +27,22 @@ export function createFileStorageCapability(moduleId: string) {
 
   return {
     async save(key: string, sourceUri: string): Promise<{ uri: string }> {
+      if (sourceUri.startsWith('data:image/')) {
+        const match = sourceUri.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.*)$/);
+        if (!match) throw new Error('Data URI immagine non valido');
+        const [, rawExt, base64] = match;
+        const dir = moduleDir(moduleId);
+        if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+        const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+        const dest = destFile(moduleId, key, ext);
+        dest.write(base64, { encoding: 'base64' });
+
+        const idx = await getIndex(indexKey);
+        idx[key] = dest.uri;
+        await setIndex(indexKey, idx);
+        return { uri: dest.uri };
+      }
+
       const dir = moduleDir(moduleId);
       if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
 
